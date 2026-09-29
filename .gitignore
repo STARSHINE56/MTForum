@@ -1,0 +1,37 @@
+# 构建产物
+build/
+*/build/
+build_out/
+*.apk
+*.aab
+*.ap_
+# Gradle 缓存
+.gradle/
+
+# 本机配置(每台机器不同,不入库)
+local.properties
+# Android Studio / IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+.cxx/
+.externalNativeBuild/
+# 签名文件和本地凭据永不提交
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+.env
+**/secrets.properties
+# 系统垃圾
+.DS_Store
+Thumbs.db
+# Kotlin/Java 编译
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.ear
+*.log

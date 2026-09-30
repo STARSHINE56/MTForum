@@ -1,51 +1,77 @@
-name: Build MTForum Android
+name: Build MT Forum APK
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
-    tags: ['v*']
-  workflow_dispatch:
+    paths-ignore:
+      - '**/*.md'
 
 permissions:
   contents: read
 
+concurrency:
+  group: mtforum-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Test, Lint and Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
     steps:
-      - name: Checkout
+      - name: Checkout project
         uses: actions/checkout@v4
-      - name: Set up JDK 17
+
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-      - name: Install Android API 36
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
-      - name: Cache Gradle and validate Wrapper
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-      - name: Test, lint and build
-        run: |
-          chmod +x gradlew
-          ./gradlew clean test assembleDebug lint --stacktrace
-      - name: Upload lint report
-        if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: lint-report
-          path: |
-            app/build/reports/lint-results-debug.html
-            app/build/reports/lint-results-debug.xml
-            app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt
-          if-no-files-found: ignore
-      - name: Name APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk 'MT论坛-1.0.0.apk'
-      - name: Upload test APK
+          # Used only when this repository has no complete Gradle Wrapper.
+          gradle-version: '9.0.0'
+
+      - name: Choose Gradle executable
+        shell: bash
+        run: |
+          if [[ -f gradlew && -f gradle/wrapper/gradle-wrapper.jar ]]; then
+            chmod +x gradlew
+            echo 'GRADLE_CMD=./gradlew' >> "$GITHUB_ENV"
+          else
+            echo 'Gradle Wrapper incomplete; using setup-gradle Gradle 9.0.0'
+            echo 'GRADLE_CMD=gradle' >> "$GITHUB_ENV"
+          fi
+
+      - name: Run unit tests, lint and build APK
+        shell: bash
+        run: $GRADLE_CMD --no-daemon --stacktrace clean testDebugUnitTest lintDebug assembleDebug
+
+      - name: Prepare APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          mapfile -t apks < <(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' | sort)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            printf 'Expected exactly one debug APK, found %s\n' "${#apks[@]}"
+            exit 1
+          fi
+          cp "${apks[0]}" 'output/MT论坛-1.0.0.apk'
+          sha256sum 'output/MT论坛-1.0.0.apk' | tee 'output/SHA256SUMS.txt'
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MT论坛-1.0.0
-          path: MT论坛-1.0.0.apk
+          path: output/
           if-no-files-found: error
+          retention-days: 30

@@ -1,6 +1,6 @@
 package com.solosu.mtforum.ai;
 
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -66,8 +66,6 @@ public class AiChatActivity extends AppCompatActivity {
         View btnHistory = findViewById(com.solosu.mtforum.R.id.btn_history);
         if (btnHistory != null) btnHistory.setOnClickListener(v ->
                 startActivity(new android.content.Intent(this, AiSessionListActivity.class)));
-        findViewById(com.solosu.mtforum.R.id.btn_ai_config).setOnClickListener(v ->
-                startActivity(new android.content.Intent(this, AiConfigActivity.class)));
 
         btnSend.setOnClickListener(v -> sendCurrentInput());
         etInput.setOnEditorActionListener((v, actionId, event) -> {
@@ -94,14 +92,6 @@ public class AiChatActivity extends AppCompatActivity {
         } else {
             welcome();
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        TextView modelName = findViewById(com.solosu.mtforum.R.id.tv_model_name);
-        modelName.setText(AiConfigManager.isConfigured(this)
-                ? AiConfigManager.getModel(this) : "未配置模型");
     }
 
     /** 把恢复的历史消息渲染成气泡（不重发请求，纯展示） */
@@ -211,27 +201,30 @@ public class AiChatActivity extends AppCompatActivity {
     private void addBubble(String text, boolean isUser, boolean isSystem) {
         TextView tv = new TextView(this);
         tv.setTextSize(isSystem ? 13 : 14);
-        tv.setTextColor(getColor(isSystem ? com.solosu.mtforum.R.color.text_secondary
-                : (isUser ? com.solosu.mtforum.R.color.text_white
-                : com.solosu.mtforum.R.color.text_primary)));
+        tv.setTextColor(isSystem ? Color.parseColor("#606770")
+                : (isUser ? Color.WHITE : Color.parseColor("#1C1E21")));
         tv.setText(text);
         tv.setLineSpacing(4f, 1.15f);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(5);
-        lp.bottomMargin = dp(5);
+        lp.topMargin = 8;
+        lp.bottomMargin = 8;
         lp.gravity = isSystem ? Gravity.CENTER_HORIZONTAL : (isUser ? Gravity.END : Gravity.START);
         tv.setLayoutParams(lp);
 
-        int pad = dp(16);
-        tv.setPadding(pad, dp(12), pad, dp(12));
+        int pad = dp(12);
+        tv.setPadding(pad, dp(9), pad, dp(9));
         tv.setMaxWidth((int) (getResources().getDisplayMetrics().widthPixels * 0.82f));
 
-        if (!isSystem) tv.setBackground(bubbleBackground(
-                isUser ? com.solosu.mtforum.R.color.ai_user_bubble
-                        : com.solosu.mtforum.R.color.background_secondary));
+        if (isSystem) {
+            tv.setBackgroundColor(Color.TRANSPARENT);
+        } else if (isUser) {
+            tv.setBackgroundColor(Color.parseColor("#1A73E8"));
+        } else {
+            tv.setBackgroundColor(Color.parseColor("#FFFFFF"));
+        }
         tv.setTextIsSelectable(true);
 
         container.addView(tv);
@@ -242,7 +235,7 @@ public class AiChatActivity extends AppCompatActivity {
     private View addThinking() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setBackground(bubbleBackground(com.solosu.mtforum.R.color.background_secondary));
+        box.setBackgroundColor(Color.parseColor("#FFFFFF"));
         int pad = dp(12);
         box.setPadding(pad, dp(9), pad, dp(9));
 
@@ -256,7 +249,7 @@ public class AiChatActivity extends AppCompatActivity {
 
         TextView tv = new TextView(this);
         tv.setTextSize(13);
-        tv.setTextColor(getColor(com.solosu.mtforum.R.color.text_secondary));
+        tv.setTextColor(Color.parseColor("#9CA3AF"));
         tv.setText("正在思考…");
         box.addView(tv);
         box.setTag(tv);
@@ -283,13 +276,6 @@ public class AiChatActivity extends AppCompatActivity {
 
     private int dp(int v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
-    }
-
-    private GradientDrawable bubbleBackground(int colorId) {
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(getColor(colorId));
-        background.setCornerRadius(dp(18));
-        return background;
     }
 
     // ==================== 主流程 ====================

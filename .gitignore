@@ -17,21 +17,15 @@ local.properties
 *.iws
 .cxx/
 .externalNativeBuild/
-# 签名文件和本地凭据永不提交
-*.jks
-*.keystore
-*.p12
-*.pem
-*.key
-.env
-**/secrets.properties
+# 签名(默认忽略,防止误传私钥;本项目为演示 keystore 已附,正式分发请自换)
+# *.jks
+# *.keystore
 # 系统垃圾
 .DS_Store
 Thumbs.db
 # Kotlin/Java 编译
 *.class
 *.jar
-!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.ear
 *.log

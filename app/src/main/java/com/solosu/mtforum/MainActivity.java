@@ -161,6 +161,7 @@ public class MainActivity extends AppCompatActivity {
             public void onDrawerOpened(View dv) {
                 // build71: 改走统一入口,保证 navHidden 标记与实际可见性永远一致
                 setBottomNavVisible(false);
+                updateAutoReplyTaskStatus();
             }
 
             @Override
@@ -181,6 +182,7 @@ public class MainActivity extends AppCompatActivity {
         tvDrawerSubtitle = findViewById(R.id.drawer_subtitle);
         tvAiDesc = findViewById(R.id.drawer_ai_desc);
         ivDrawerAvatar = findViewById(R.id.drawer_avatar);
+        updateAutoReplyTaskStatus();
         // build57: 侧边栏头部(头像/用户名/UID行)点击进自己主页
         View.OnClickListener ownProfile = v -> openOwnProfile();
         ivDrawerAvatar.setOnClickListener(ownProfile);
@@ -204,6 +206,7 @@ public class MainActivity extends AppCompatActivity {
                 AiConfigManager.setAutoReplyEnabled(this, checked);
                 AutoReplyScheduler.reschedule(this);
                 AiLog.i("drawer", "自动回复 " + (checked ? "开启" : "关闭"));
+                updateAutoReplyTaskStatus();
                 if (checked) {
                     Toast.makeText(this, "自动回复已开启（后台静默运行）", Toast.LENGTH_SHORT).show();
                 }
@@ -292,12 +295,26 @@ public class MainActivity extends AppCompatActivity {
         View runReply = findViewById(R.id.drawer_run_reply);
         if (runReply != null) {
             runReply.setOnClickListener(v -> {
+                if (!runReply.isEnabled()) return;
+                runReply.setEnabled(false);
+                TextView taskStatus = findViewById(R.id.drawer_task_status);
+                if (taskStatus != null) taskStatus.setText("正在执行手动任务…");
                 drawerLayout.closeDrawer(drawerPanel);
                 Toast.makeText(this, "开始执行一轮自动回复…", Toast.LENGTH_SHORT).show();
-                AutoReplyEngine.runOnce(this, (replied, skipped, detail) ->
-                        Toast.makeText(this,
-                                "本轮：回复 " + replied + " 条，跳过 " + skipped + " 条\n" + detail,
-                                Toast.LENGTH_LONG).show());
+                AutoReplyEngine.runOnce(this, (replied, skipped, detail) -> runOnUiThread(() -> {
+                    runReply.setEnabled(true);
+                    String result = android.text.format.DateFormat.format("MM-dd HH:mm", System.currentTimeMillis())
+                            + " · 自动回复\n回复 " + replied + " 条，跳过 " + skipped + " 条"
+                            + (detail == null || detail.trim().isEmpty() ? "" : "\n" + detail.trim());
+                    getSharedPreferences("auto_reply_task_view", MODE_PRIVATE).edit()
+                            .putString("last_manual_result", result).apply();
+                    updateAutoReplyTaskStatus();
+                    TextView lastTask = findViewById(R.id.drawer_last_task);
+                    if (lastTask != null) lastTask.setText(result);
+                    Toast.makeText(this,
+                            "本轮：回复 " + replied + " 条，跳过 " + skipped + " 条\n" + detail,
+                            Toast.LENGTH_LONG).show();
+                }));
             });
         }
 
@@ -361,6 +378,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** 整行点击等于切换开关 */
+    private void updateAutoReplyTaskStatus() {
+        TextView status = findViewById(R.id.drawer_task_status);
+        if (status != null) {
+            boolean enabled = AiConfigManager.isAutoReplyEnabled(this);
+            View manualRun = findViewById(R.id.drawer_run_reply);
+            boolean running = manualRun != null && !manualRun.isEnabled();
+            status.setText(running ? "正在执行手动任务…"
+                    : (enabled ? "自动回复已开启 · 按计划执行" : "自动回复已暂停"));
+            status.setTextColor(getColor(running || enabled ? R.color.primary_dark : R.color.text_secondary));
+        }
+        TextView lastTask = findViewById(R.id.drawer_last_task);
+        if (lastTask != null) lastTask.setText(getSharedPreferences("auto_reply_task_view", MODE_PRIVATE)
+                .getString("last_manual_result", "暂无手动执行记录"));
+    }
+
     private void bindSwitchRow(int rowId, SwitchMaterial sw) {
         if (sw == null) return;
         View row = findViewById(rowId);

@@ -81,23 +81,9 @@
                 android:paddingHorizontal="10dp"
                 android:paddingTop="8dp"
                 android:paddingBottom="6dp"
-                android:text="自动回复"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/drawer_task_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:layout_marginBottom="12dp"
-                android:background="@drawable/bg_task_status"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="11dp"
-                android:text="自动回复已暂停"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:text="自动化"
+                android:textColor="@color/text_hint"
+                android:textSize="11sp" />
 
             <!-- 自动回复 -->
             <LinearLayout
@@ -492,29 +478,6 @@
                     android:textColor="@color/text_primary"
                     android:textSize="14sp" />
             </LinearLayout>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="10dp"
-                android:paddingTop="14dp"
-                android:paddingBottom="6dp"
-                android:text="最近手动任务"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/drawer_last_task"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:layout_marginBottom="8dp"
-                android:background="@drawable/bg_task_status"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="11dp"
-                android:text="暂无手动执行记录"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
 
             <LinearLayout
                 android:id="@+id/drawer_run_sign_in"

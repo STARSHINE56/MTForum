@@ -18,7 +18,6 @@
 
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/main_pager"
-            android:layout_marginBottom="78dp"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:background="@color/background"
@@ -48,10 +47,10 @@
     <LinearLayout
         android:id="@+id/bottom_nav_container"
         android:layout_width="match_parent"
-        android:layout_height="72dp"
+        android:layout_height="68dp"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginHorizontal="8dp"
-        android:layout_marginBottom="4dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="12dp"
         android:background="@drawable/nav_bar_bg"
         android:elevation="8dp"
         android:gravity="center_vertical"
@@ -68,13 +67,13 @@
             android:layout_weight="1"
             android:gravity="center"
             android:orientation="vertical"
-            android:paddingVertical="6dp"
+            android:paddingVertical="8dp"
             android:paddingHorizontal="4dp">
 
             <ImageView
                 android:id="@+id/nav_home_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center_horizontal"
                 android:src="@drawable/ic_home"
                 android:contentDescription="首页"
@@ -88,7 +87,7 @@
                 android:layout_marginTop="3dp"
                 android:text="@string/tab_home"
                 android:textColor="@color/nav_text_default"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
         </LinearLayout>
 
         <!-- 第2项：版块 -->
@@ -99,13 +98,13 @@
             android:layout_weight="1"
             android:gravity="center"
             android:orientation="vertical"
-            android:paddingVertical="6dp"
+            android:paddingVertical="8dp"
             android:paddingHorizontal="4dp">
 
             <ImageView
                 android:id="@+id/nav_community_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center_horizontal"
                 android:src="@drawable/ic_discover"
                 android:contentDescription="发现"
@@ -119,7 +118,7 @@
                 android:layout_marginTop="3dp"
                 android:text="@string/tab_circle"
                 android:textColor="@color/nav_text_default"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
         </LinearLayout>
 
         <!-- 第3项：凸起发布按钮 -->
@@ -138,7 +137,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginTop="0dp"
+                android:layout_marginTop="-14dp"
                 android:src="@drawable/ic_add"
                 android:background="@drawable/bg_nav_center_button"
                 app:tint="@color/white"
@@ -155,12 +154,12 @@
             android:layout_weight="1"
             android:gravity="center"
             android:orientation="vertical"
-            android:paddingVertical="6dp"
+            android:paddingVertical="8dp"
             android:paddingHorizontal="4dp">
 
             <FrameLayout
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center_horizontal">
 
                 <ImageView
@@ -196,7 +195,7 @@
                 android:layout_marginTop="3dp"
                 android:text="@string/tab_message"
                 android:textColor="@color/nav_text_default"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
         </LinearLayout>
 
         <!-- 第5项：我的 -->
@@ -207,13 +206,13 @@
             android:layout_weight="1"
             android:gravity="center"
             android:orientation="vertical"
-            android:paddingVertical="6dp"
+            android:paddingVertical="8dp"
             android:paddingHorizontal="4dp">
 
             <ImageView
                 android:id="@+id/nav_profile_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center_horizontal"
                 android:src="@drawable/ic_profile"
                 android:contentDescription="个人主页"
@@ -227,7 +226,7 @@
                 android:layout_marginTop="3dp"
                 android:text="@string/tab_profile"
                 android:textColor="@color/nav_text_default"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
         </LinearLayout>
 
     </LinearLayout>

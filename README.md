@@ -13,7 +13,7 @@
 JDK 17、Android SDK API 36、Gradle Wrapper 8.13、Android Gradle Plugin 8.13.0。运行：
 
 ```bash
-./gradlew clean test lint assembleDebug
+bash gradlew clean test assembleDebug lint
 ```
 
 调试 APK 在 `app/build/outputs/apk/debug/app-debug.apk`。GitHub Actions 会复制为 `MT论坛-1.0.0.apk` 并作为同名 Artifact 保存。该包使用 Android 调试签名，仅供测试，不是正式发布包。没有配置正式签名；原包所附签名文件和密码已移除。
@@ -22,4 +22,6 @@ JDK 17、Android SDK API 36、Gradle Wrapper 8.13、Android Gradle Plugin 8.13.0
 
 ## 验证状态
 
-本地没有 Android SDK 和可下载的 Gradle 分发环境，尚未跑通 Android 构建或真机验收；应以实际 Actions 运行结果为准。未经验证不要宣称正式发布成功。
+GitHub Actions [第 6 次运行](https://github.com/STARSHINE56/MTForum/actions/runs/36650906918) 已完成 `clean test assembleDebug lint` 并上传测试 APK。`test` 任务没有现成的单元测试源码；lint 没有错误，仍有原项目警告。APK 文件 SHA-256：`c440448ada1d8c43c0242f34ec141bf9bd522da39e9a647b905cdf159e7e616b`。
+
+尚未进行真机启动、底部导航逐项、登录、真实论坛发帖与回复、AI 服务和自动回复的端到端验收。原始授权未明确，且该 APK 使用 Debug 签名，因此暂不创建 Release 或宣称正式版。

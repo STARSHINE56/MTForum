@@ -1,0 +1,113 @@
+name: MTForum Fix Bottom Space and Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mtforum-fix-bottom-space
+  cancel-in-progress: false
+
+jobs:
+  fix-test-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Fix layout and navigation (fail on unknown source)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          root = Path('app/src/main')
+          java_path = root / 'java/com/solosu/mtforum/MainActivity.java'
+          java = java_path.read_text(encoding='utf-8')
+          old = '    /** 显示/隐藏底部导航栏(带动画) */\n    private void setBottomNavVisible(boolean show) {\n        View nav = findViewById(R.id.bottom_nav_container);\n        if (nav == null) return;\n        if (show) {\n            if (!navHidden && nav.getVisibility() == View.VISIBLE) return;\n            navHidden = false;\n            nav.setVisibility(View.VISIBLE);\n            nav.animate().translationY(0f).setDuration(NAV_HIDE_ANIM_MS)\n                    .setListener(null).start();\n        } else {\n            if (navHidden) return;\n            navHidden = true;\n            float hidden = nav.getHeight() > 0 ? nav.getHeight() + dp(24f) : dp(92f);\n            nav.animate().translationY(hidden).setDuration(NAV_HIDE_ANIM_MS)\n                    .withEndAction(() -> {\n                        if (navHidden) nav.setVisibility(View.GONE);\n                    }).start();\n        }\n    }\n'
+          new = '    /**\n     * 导航栏与页面共用同一份底部空间。不能只移动导航栏：\n     * ViewPager 如果一直保留 78dp margin，隐藏导航后四个页面都会留下空白。\n     */\n    private void setBottomNavVisible(boolean show) {\n        View nav = binding.bottomNavContainer;\n        if (nav == null || mainPager == null) return;\n        if (show == !navHidden && nav.getVisibility() == View.VISIBLE) return;\n\n        navHidden = !show;\n        // Cancel the previous animation to prevent a delayed GONE from hiding a newly shown bar.\n        nav.animate().cancel();\n        android.view.ViewGroup.LayoutParams rawParams = mainPager.getLayoutParams();\n        if (rawParams instanceof android.view.ViewGroup.MarginLayoutParams) {\n            android.view.ViewGroup.MarginLayoutParams params =\n                    (android.view.ViewGroup.MarginLayoutParams) rawParams;\n            int desiredBottomMargin = show ? (int) dp(78f) : 0;\n            if (params.bottomMargin != desiredBottomMargin) {\n                params.bottomMargin = desiredBottomMargin;\n                mainPager.setLayoutParams(params);\n            }\n        }\n        if (show) {\n            nav.setVisibility(View.VISIBLE);\n            nav.animate().translationY(0f).setDuration(NAV_HIDE_ANIM_MS).start();\n        } else {\n            float hidden = nav.getHeight() > 0 ? nav.getHeight() + dp(24f) : dp(92f);\n            nav.animate().translationY(hidden).setDuration(NAV_HIDE_ANIM_MS)\n                    .withEndAction(() -> {\n                        if (navHidden) nav.setVisibility(View.GONE);\n                    }).start();\n        }\n    }\n'
+          # A method signature may vary slightly between revisions; refuse unsafe edits.
+          if 'params.bottomMargin = desiredBottomMargin' not in java:
+              if java.count(old) != 1:
+                  raise SystemExit('MainActivity differs from supplied ZIP; no automated edit. Refresh source first.')
+              java = java.replace(old, new, 1)
+              java_path.write_text(java, encoding='utf-8')
+
+          for name, previous, current in [
+              ('fragment_community.xml', '92dp', '12dp'),
+              ('fragment_profile.xml', '80dp', '12dp'),
+          ]:
+              path = root / 'res/layout' / name
+              content = path.read_text(encoding='utf-8')
+              import re
+              old_attr = 'android:paddingBottom="' + previous + '"'
+              new_attr = 'android:paddingBottom="' + current + '"'
+              if old_attr in content:
+                  if content.count(old_attr) != 1:
+                      raise SystemExit(f'{name}: padding target ambiguous')
+                  content = content.replace(old_attr, new_attr, 1)
+                  path.write_text(content, encoding='utf-8')
+              elif new_attr not in content:
+                  raise SystemExit(f'{name}: unexpected padding; refusing unsafe replacement')
+              ET.parse(path)
+
+          assert 'params.bottomMargin = desiredBottomMargin' in java
+          assert 'nav.animate().cancel()' in java
+          assert 'show ? (int) dp(78f) : 0' in java
+          print('PASS: bottom navigation layout patch and XML checks')
+          PY
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Check preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk" && test -d "$sdk/platforms"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Test lint and assemble
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f gradlew && test -f gradle/wrapper/gradle-wrapper.jar
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
+
+      - name: Commit verified source fixes to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add app/src/main/java/com/solosu/mtforum/MainActivity.java \
+                  app/src/main/res/layout/fragment_community.xml \
+                  app/src/main/res/layout/fragment_profile.xml
+          if git diff --cached --quiet; then
+            echo 'Source already fixed; nothing to commit.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'fix: release pager space when bottom navigation hides'
+            git push origin HEAD:main
+          fi
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MTForum-bottom-space-fixed-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30

@@ -1343,7 +1343,10 @@ private void uploadImages(List<Uri> uris) {
                 if (TextUtils.isEmpty(nt)) nt = "分享";
                 etTitle.setText(nt);
                 etContent.setText(nb);
-                Toast.makeText(this, "AI 草稿已生成，请检查后点击发布", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "已生成，正在发布…", Toast.LENGTH_SHORT).show();
+                // 立即自动提交
+                if (!btnPublish.isEnabled()) return;
+                attemptPost();
             });
         }, "ai-autopost").start();
     }

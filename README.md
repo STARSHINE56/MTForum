@@ -1,27 +1,57 @@
-# MT论坛
+# MTForum — MT 论坛第三方客户端
 
-版本：1.0.0（versionCode 1）。Android 原生 Java 的论坛客户端，基于所提供的「论坛源码_v2.2」作二次开发。原包的说明保存于 [docs/ORIGINAL_README.md](docs/ORIGINAL_README.md)，现有源码中的作者和版权信息保留。
-
-> 原包没有提供许可证或明确的公开再分发授权。在确认授权之前，请保持仓库私有，不要公开源码或发布 Release。请向原作者确认权利、署名要求和许可文本。
-
-## 功能和导航
-
-底部导航按原有顺序保留：首页、版块、发布、消息、我的。保留原有论坛解析、帖子阅读/发布/回复、账号、AI 聊天及侧边栏自动回复和自动解锁逻辑。界面调整仍需在真实设备及论坛账户上验收。
+[bbs.binmt.cc](https://bbs.binmt.cc/) 的第三方 Android 客户端。原生 Java + Material Design，覆盖板块浏览、帖子阅读、回复/发帖、个人中心、多账号、AI 自动签到/自动回复。
 
 ## 构建
 
-JDK 17、Android SDK API 36、Gradle Wrapper 8.13、Android Gradle Plugin 8.13.0。运行：
+需要：JDK 17、Android SDK 36、Gradle 9.0+
 
 ```bash
-bash gradlew clean test assembleDebug lint
+# 首次构建会自动下载 gradle wrapper 和依赖
+gradle :app:assembleDebug        # 调试包
+gradle :app:assembleRelease      # 发布包(需 keystore)
 ```
 
-调试 APK 在 `app/build/outputs/apk/debug/app-debug.apk`。GitHub Actions 会复制为 `MT论坛-1.0.0.apk` 并作为同名 Artifact 保存。该包使用 Android 调试签名，仅供测试，不是正式发布包。没有配置正式签名；原包所附签名文件和密码已移除。
+> aapt2 走 Android SDK 自带即可。项目 `gradle.properties` 已剔除本机 `aapt2FromMavenOverride` 绝对路径，别加回来。
 
-包名仍为 `com.solosu.mtforum`，与原版同时安装可能冲突。由于 versionCode 重置为 1，无法保证覆盖已有 2.2 版本；安装前先备份账户资料和草稿。改变包名涉及账户持久化、第三方回调和更新链路，需单独验证后再决定。
+### 发布包签名
 
-## 验证状态
+`app/keystore.jks` 为打包示例（密码 `mtforum123`、别名 `mtforum`、有效期 10000 天）。**分享出去前请重新生成自己的 keystore，别用这个**：
 
-GitHub Actions [第 6 次运行](https://github.com/STARSHINE56/MTForum/actions/runs/36650906918) 已完成 `clean test assembleDebug lint` 并上传测试 APK。`test` 任务没有现成的单元测试源码；lint 没有错误，仍有原项目警告。APK 文件 SHA-256：`c440448ada1d8c43c0242f34ec141bf9bd522da39e9a647b905cdf159e7e616b`。
+```bash
+keytool -genkeypair -v -keystore your.jks -alias your_alias -keyalg RSA -keysize 2048 -validity 10000
+```
 
-尚未进行真机启动、底部导航逐项、登录、真实论坛发帖与回复、AI 服务和自动回复的端到端验收。原始授权未明确，且该 APK 使用 Debug 签名，因此暂不创建 Release 或宣称正式版。
+然后修改 `app/build.gradle` 里的 `signingConfigs.release` 三个字段。
+
+## 目录结构
+
+```
+MTForum_source/
+├── build.gradle                 # 根配置
+├── settings.gradle
+├── gradle.properties
+├── gradle/
+│   ├── libs.versions.toml       # 依赖版本
+│   └── wrapper/
+│       └── gradle-wrapper.properties
+├── app/
+│   ├── build.gradle             # app 配置(含 signingConfigs)
+│   ├── proguard-rules.pro
+│   ├── keystore.jks             # 示例签名,请自换
+│   └── src/main/
+│       ├── AndroidManifest.xml
+│       ├── java/                # 源代码
+│       └── res/                 # 布局/资源
+└── README.md
+```
+
+## 依赖
+
+OkHttp（网络）、Jsoup（HTML 解析）、Glide（图片）、Material Components（UI）、ViewPager2、DrawerLayout、WebKit。
+
+## 注意
+
+- 代码为 build81 版本(v2.2)，包含登录链路修复、全标签富文本重写、举报弹窗（Chip 单选理由）、评论菜单卡片化、列表页去收藏格、崩溃日志镜像、点赞数同步、回复发送后清空图片、消息红点本地即时清零等改动
+- `HttpClient` 里的 USER_AGENT 是写死的（三星 S918B/Chrome 120），论坛风控严格时可按需调整
+- 论坛站点 `bbs.binmt.cc` 挂了阿里云 ESA，频率过高会被 IP 级 403 拦截，别短时间内连发请求

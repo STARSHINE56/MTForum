@@ -127,7 +127,7 @@ public class ThreadAdapter extends RecyclerView.Adapter<ThreadAdapter.ViewHolder
         // ThreadAdapter 被首页、版块、搜索、个人帖子等所有帖子列表复用，统一挂载磨砂玻璃背景（卡片容器）。
         View cardView = view.findViewById(R.id.thread_card);
         if (cardView != null) {
-            cardView.setBackgroundResource(R.drawable.thread_card_bg);
+            cardView.setBackground(FrostedGlassDrawable.create(context, 14f));
         }
         return new ViewHolder(view);
     }

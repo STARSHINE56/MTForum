@@ -3,7 +3,8 @@ name: Build MT Forum APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
     paths-ignore:
       - '**/*.md'
 
@@ -17,10 +18,11 @@ concurrency:
 jobs:
   build:
     name: Test, Lint and Build APK
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g
+
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -31,29 +33,39 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          # Used only when this repository has no complete Gradle Wrapper.
-          gradle-version: '9.0.0'
-
-      - name: Choose Gradle executable
+      # GitHub-hosted Ubuntu runners include Android SDK. Do not invoke
+      # setup-android, which failed attempting to install obsolete 'tools'.
+      - name: Check preinstalled Android SDK
         shell: bash
         run: |
-          if [[ -f gradlew && -f gradle/wrapper/gradle-wrapper.jar ]]; then
-            chmod +x gradlew
-            echo 'GRADLE_CMD=./gradlew' >> "$GITHUB_ENV"
-          else
-            echo 'Gradle Wrapper incomplete; using setup-gradle Gradle 9.0.0'
-            echo 'GRADLE_CMD=gradle' >> "$GITHUB_ENV"
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [[ -z "$sdk" || ! -d "$sdk/platforms" ]]; then
+            echo 'Android SDK unavailable on this runner.' >&2
+            exit 1
           fi
+          ls -1 "$sdk/platforms"
+          ls -1 "$sdk/build-tools"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check Gradle Wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f gradlew || ! -f gradle/wrapper/gradle-wrapper.jar ]]; then
+            echo 'Gradle Wrapper missing; use the complete wrapper from the project.' >&2
+            exit 1
+          fi
+          chmod +x gradlew
+          grep '^distributionUrl=' gradle/wrapper/gradle-wrapper.properties
 
       - name: Run unit tests, lint and build APK
         shell: bash
-        run: $GRADLE_CMD --no-daemon --stacktrace clean testDebugUnitTest lintDebug assembleDebug
+        run: ./gradlew --no-daemon --stacktrace clean testDebugUnitTest lintDebug assembleDebug
 
       - name: Prepare APK
         shell: bash
@@ -61,12 +73,12 @@ jobs:
           set -euo pipefail
           mkdir -p output
           mapfile -t apks < <(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' | sort)
-          if [ "${#apks[@]}" -ne 1 ]; then
-            printf 'Expected exactly one debug APK, found %s\n' "${#apks[@]}"
+          if [[ "${#apks[@]}" -ne 1 ]]; then
+            printf 'Expected exactly one debug APK, found %s\n' "${#apks[@]}" >&2
             exit 1
           fi
           cp "${apks[0]}" 'output/MT论坛-1.0.0.apk'
-          sha256sum 'output/MT论坛-1.0.0.apk' | tee 'output/SHA256SUMS.txt'
+          sha256sum 'output/MT论坛-1.0.0.apk' > 'output/SHA256SUMS.txt'
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

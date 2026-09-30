@@ -1,0 +1,111 @@
+name: Fix MTForum shared bottom blank and build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mtforum-shared-bottom-fix
+  cancel-in-progress: false
+
+jobs:
+  fix-and-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Fix shared ViewPager bottom layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d <<'PY_B64' | gzip -dc > /tmp/fix_shared_bottom.py
+          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
+          PY_B64
+          python3 /tmp/fix_shared_bottom.py
+
+      - name: Confirm changes are limited to shared layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          python3 - <<'PY_CHECK'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          for f in Path('app/src/main/res/layout').glob('*.xml'):
+              ET.parse(f)
+          x=Path('app/src/main/res/layout/activity_main.xml').read_text()
+          j=Path('app/src/main/java/com/solosu/mtforum/MainActivity.java').read_text()
+          assert 'app:layout_constraintBottom_toBottomOf="parent"' in x
+          assert 'app:layout_constraintBottom_toTopOf="@id/bottom_nav_container"' not in x
+          assert 'updatePagerBottomSpace(show);' in j
+          print('XML/layout regression checks passed.')
+          PY_CHECK
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Test lint and compile
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+
+      - name: Upload generated debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MTForum-shared-bottom-fix-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Commit tested source fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/src/main/res/layout/activity_main.xml app/src/main/java/com/solosu/mtforum/MainActivity.java
+          if ! git diff --cached --quiet; then
+            git commit -m "fix: release shared pager bottom space when nav hides"
+            git push origin HEAD:main
+          else
+            echo 'Shared fix already present.'
+          fi

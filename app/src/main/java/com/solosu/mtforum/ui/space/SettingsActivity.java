@@ -6,7 +6,6 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.app.AppCompatDelegate;
 import com.solosu.mtforum.BuildConfig;
 import com.solosu.mtforum.R;
 import com.solosu.mtforum.databinding.ActivitySettingsBinding;
@@ -40,23 +39,6 @@ public class SettingsActivity extends AppCompatActivity {
         binding = ActivitySettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         binding.tvVersion.setText(BuildConfig.VERSION_NAME);
-        updateThemeLabel();
-        binding.layoutTheme.setOnClickListener(v -> {
-            String[] options = {"跟随系统", "浅色", "深色"};
-            int[] modes = {AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,
-                    AppCompatDelegate.MODE_NIGHT_NO, AppCompatDelegate.MODE_NIGHT_YES};
-            int current = getSharedPreferences("appearance", MODE_PRIVATE)
-                    .getInt("night_mode", modes[0]);
-            int selected = current == modes[1] ? 1 : current == modes[2] ? 2 : 0;
-            new AlertDialog.Builder(this).setTitle("外观模式")
-                    .setSingleChoiceItems(options, selected, (dialog, which) -> {
-                        getSharedPreferences("appearance", MODE_PRIVATE).edit()
-                                .putInt("night_mode", modes[which]).apply();
-                        dialog.dismiss();
-                        AppCompatDelegate.setDefaultNightMode(modes[which]);
-                        updateThemeLabel();
-                    }).setNegativeButton("取消", null).show();
-        });
 
         FrostedGlassHelper.applyToCardViews(binding.getRoot(), this);
 
@@ -128,13 +110,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
     */
-
-    private void updateThemeLabel() {
-        int mode = getSharedPreferences("appearance", MODE_PRIVATE)
-                .getInt("night_mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-        binding.tvThemeMode.setText(mode == AppCompatDelegate.MODE_NIGHT_YES ? "深色"
-                : mode == AppCompatDelegate.MODE_NIGHT_NO ? "浅色" : "跟随系统");
-    }
 
     private void updateErrorLogCount() {
         File[] files = CrashHandler.getCrashLogFiles();

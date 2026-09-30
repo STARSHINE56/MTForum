@@ -52,6 +52,7 @@
     <!-- AI 专用绿(总结按钮/AI 入口) -->
     <color name="accent_ai">#2E7D32</color>
     <color name="accent_ai_fill">#142E7D32</color>
+    <color name="ai_user_bubble">#5853B9</color>
     <!-- 置顶帖/热点强调红系 -->
     <color name="sticky_card_bg">#FFF8FA</color>
     <color name="sticky_stroke">#FFB6C8</color>

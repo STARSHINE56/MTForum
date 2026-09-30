@@ -71,7 +71,7 @@
                             android:id="@+id/tv_version"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="1.0.0"
+                            android:text="1.10"
                             android:textSize="14sp"
                             android:textColor="@color/text_primary" />
 
@@ -108,41 +108,6 @@
 
                 </LinearLayout>
 
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/layout_theme"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="1dp"
-                app:strokeColor="@color/divider"
-                app:contentPadding="16dp">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="外观模式"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-                    <TextView
-                        android:id="@+id/tv_theme_mode"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="跟随系统"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
-                </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- 自动签到设置卡片 -->
@@ -231,7 +196,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="此版本尚未提供在线检查"
+                            android:text="检查更新文件夹是否有新版本"
                             android:textColor="@color/text_secondary"
                             android:textSize="13sp" />
                     </LinearLayout>
@@ -240,8 +205,8 @@
                         android:id="@+id/tv_update_status"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="暂未开放"
-                        android:textColor="@color/text_secondary"
+                        android:text="检查"
+                        android:textColor="@color/primary"
                         android:textSize="14sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

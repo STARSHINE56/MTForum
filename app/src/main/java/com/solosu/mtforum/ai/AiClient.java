@@ -189,12 +189,13 @@ public final class AiClient {
             }
 
             final String requestBody0 = body.toString();
-            AiLog.i("ai-req", "POST AI endpoint\nmodel=" + model
+            AiLog.i("ai-req", "POST " + url + "\nmodel=" + model
                     + " max_tokens=" + maxTokens
                     + " temperature=" + (sendTemperature ? String.valueOf(AiConfigManager.getTemperature(context)) : "不发送")
                     + " tools=" + (tools == null ? 0 : tools.size())
                     + " messages=" + messages.size()
-                    + " bodyBytes=" + requestBody0.getBytes("UTF-8").length);
+                    + " bodyBytes=" + requestBody0.getBytes("UTF-8").length
+                    + "\nbody=" + AiLog.clip(requestBody0, 1200));
 
             OkHttpClient client = buildClient(AiConfigManager.getTimeoutSeconds(context));
             Response response = post(client, url, key, requestBody0);
@@ -208,14 +209,16 @@ public final class AiClient {
                 body.remove("temperature");
                 AiConfigManager.setSendTemperature(context, false);
                 final String requestBody1 = body.toString();
-                AiLog.i("ai-req", "POST AI endpoint (重试, 不带 temperature)");
+                AiLog.i("ai-req", "POST(重试, 不带 temperature) " + url
+                        + "\nbody=" + AiLog.clip(requestBody1, 1200));
                 Response retry = post(client, url, key, requestBody1);
                 resp = retry.body() != null ? retry.body().string() : "";
                 code = retry.code();
                 retry.close();
             }
 
-            AiLog.i("ai-resp", "HTTP " + code + " bytes=" + resp.length());
+            AiLog.i("ai-resp", "HTTP " + code + " bytes=" + resp.length()
+                    + "\n" + AiLog.clip(resp, 1500));
             if (code < 200 || code >= 300) {
                 r.error = "HTTP " + code + " " + brief(resp);
                 return r;

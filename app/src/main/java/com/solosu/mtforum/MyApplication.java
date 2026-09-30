@@ -1,7 +1,6 @@
 package com.solosu.mtforum;
 
 import android.app.Application;
-import androidx.appcompat.app.AppCompatDelegate;
 
 import com.solosu.mtforum.ai.AiLog;
 import com.solosu.mtforum.ai.AutoReplyScheduler;
@@ -17,9 +16,6 @@ public class MyApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        int themeMode = getSharedPreferences("appearance", MODE_PRIVATE)
-                .getInt("night_mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-        AppCompatDelegate.setDefaultNightMode(themeMode);
 
         // 恢复持久化的 Cookie —— 在任何 Activity 启动前执行
         // 防止从最近任务直接恢复 SearchActivity 等非 MainActivity 时登录态丢失

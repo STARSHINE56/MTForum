@@ -30,7 +30,17 @@ jobs:
       - name: Test, lint and build
         run: |
           chmod +x gradlew
-          ./gradlew clean test lint assembleDebug --stacktrace
+          ./gradlew clean test assembleDebug lint --stacktrace
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: |
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+            app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt
+          if-no-files-found: ignore
       - name: Name APK
         run: cp app/build/outputs/apk/debug/app-debug.apk 'MT论坛-1.0.0.apk'
       - name: Upload test APK

@@ -805,8 +805,8 @@ public class ThreadDetailActivity extends AppCompatActivity {
         if (replyCount > (replies != null ? replies.size() : 0)) {
         }
         this.binding.btnLoadMore.setVisibility(View.GONE);
-        this.binding.layoutReply.setVisibility(this.httpClient.isLoggedIn() ? 0 : 8);
-        this.binding.layoutThreadActions.setVisibility(this.httpClient.isLoggedIn() ? 0 : 8);
+        this.binding.layoutReply.setVisibility(this.httpClient.isLoggedIn() ? View.VISIBLE : View.GONE);
+        this.binding.layoutThreadActions.setVisibility(this.httpClient.isLoggedIn() ? View.VISIBLE : View.GONE);
         int rewardCount = postDetail.getRewardCount();
         int goodReviewCount = postDetail.getGoodReviewCount();
         int rewardCoins = postDetail.getRewardCoins();

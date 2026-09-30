@@ -38,6 +38,7 @@
 
     <!-- accent_primary -->
     <color name="accent_primary">#C3BFFF</color>
+    <color name="ai_user_bubble">#625BC5</color>
 
     <!-- 渐变 -->
     <color name="gradient_start">#A8A3F4</color>

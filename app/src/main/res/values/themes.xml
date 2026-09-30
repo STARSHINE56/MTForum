@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- 主主题 - 科技蓝风格 -->
-    <style name="Theme.AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Primary brand color. -->
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
@@ -31,8 +31,8 @@
 
     <!-- 卡片样式 -->
     <style name="CardView.NewStyle" parent="Widget.MaterialComponents.CardView">
-        <item name="cardCornerRadius">16dp</item>
-        <item name="cardElevation">0dp</item>
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">2dp</item>
         <item name="cardBackgroundColor">@color/card_frosted</item>
         <item name="strokeWidth">0dp</item>
         <item name="cardPreventCornerOverlap">false</item>

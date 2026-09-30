@@ -11,14 +11,23 @@ android {
         applicationId 'com.solosu.mtforum'
         minSdk 29
         targetSdk 34
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 6
+        versionName "2.2"
 
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 
+    signingConfigs {
+        release {
+            storeFile file('keystore.jks')
+            storePassword 'mtforum123'
+            keyAlias 'mtforum'
+            keyPassword 'mtforum123'
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
         }

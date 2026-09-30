@@ -1,0 +1,165 @@
+name: One-click repair and build MTForum
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mtforum-one-click-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Restore tested source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d <<'PATCH_B64' | gzip -dc > /tmp/mtforum-repair.patch
+          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
+          AA==
+          PATCH_B64
+          # Stop safely if main was changed since the uploaded source snapshot.
+          # Re-running after a completed repair is also safe.
+          if git apply --reverse --check /tmp/mtforum-repair.patch 2>/dev/null; then
+            echo 'Repair patch already present; no source files changed.'
+          elif git apply --check /tmp/mtforum-repair.patch; then
+            git apply /tmp/mtforum-repair.patch
+          else
+            echo 'Source differs from the supplied ZIP. Aborting without overwriting changes.' >&2
+            exit 1
+          fi
+
+      - name: Verify layouts and regression checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/check_main_layout.py
+          python3 - <<'PY_CHECK'
+          import pathlib, xml.etree.ElementTree as ET
+          for file in pathlib.Path('app/src/main/res/layout').glob('*.xml'):
+              ET.parse(file)
+          print('All layout XML files parsed successfully.')
+          PY_CHECK
+
+      - name: Install JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify Android SDK and wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk" && test -d "$sdk/platforms"
+          test -f gradlew && test -f gradle/wrapper/gradle-wrapper.jar
+          chmod +x gradlew
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests, lint, and debug APK
+        shell: bash
+        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
+
+      - name: Prepare APK artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          mapfile -t apks < <(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' | sort)
+          test "${#apks[@]}" -eq 1
+          cp "${apks[0]}" 'output/MT论坛-1.0.0.apk'
+          (cd output && sha256sum 'MT论坛-1.0.0.apk' > SHA256SUMS.txt)
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MTForum-repaired-debug-apk
+          path: output/
+          if-no-files-found: error
+
+      - name: Commit and push repaired source only after successful build
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- .github/workflows/mtforum-bottom-nav-check.yml \
+            app/src/main/java/com/solosu/mtforum/MainActivity.java \
+            app/src/main/res/layout/activity_main.xml \
+            app/src/main/res/layout/fragment_community.xml \
+            app/src/main/res/layout/fragment_home.xml \
+            app/src/main/res/layout/fragment_profile.xml \
+            app/src/main/res/layout/item_thread.xml scripts/check_main_layout.py
+          if git diff --cached --quiet; then
+            echo 'No new changes to push.'
+          else
+            git commit -m 'fix: repair bottom navigation whitespace and polish layouts'
+            git push origin HEAD:main
+          fi

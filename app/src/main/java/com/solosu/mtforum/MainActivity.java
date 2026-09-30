@@ -718,19 +718,32 @@ public class MainActivity extends AppCompatActivity {
 
     // ==================== build71: 底部导航栏滚动自动隐藏 ====================
 
-    /** 显示/隐藏底部导航栏(带动画) */
+    /**
+     * 导航栏与页面共用同一份底部空间。不能只移动导航栏：
+     * ViewPager 如果一直保留 78dp margin，隐藏导航后四个页面都会留下空白。
+     */
     private void setBottomNavVisible(boolean show) {
-        View nav = findViewById(R.id.bottom_nav_container);
-        if (nav == null) return;
+        View nav = binding.bottomNavContainer;
+        if (nav == null || mainPager == null) return;
+        if (show == !navHidden && nav.getVisibility() == View.VISIBLE) return;
+
+        navHidden = !show;
+        // Cancel the previous animation to prevent a delayed GONE from hiding a newly shown bar.
+        nav.animate().cancel();
+        android.view.ViewGroup.LayoutParams rawParams = mainPager.getLayoutParams();
+        if (rawParams instanceof android.view.ViewGroup.MarginLayoutParams) {
+            android.view.ViewGroup.MarginLayoutParams params =
+                    (android.view.ViewGroup.MarginLayoutParams) rawParams;
+            int desiredBottomMargin = show ? (int) dp(78f) : 0;
+            if (params.bottomMargin != desiredBottomMargin) {
+                params.bottomMargin = desiredBottomMargin;
+                mainPager.setLayoutParams(params);
+            }
+        }
         if (show) {
-            if (!navHidden && nav.getVisibility() == View.VISIBLE) return;
-            navHidden = false;
             nav.setVisibility(View.VISIBLE);
-            nav.animate().translationY(0f).setDuration(NAV_HIDE_ANIM_MS)
-                    .setListener(null).start();
+            nav.animate().translationY(0f).setDuration(NAV_HIDE_ANIM_MS).start();
         } else {
-            if (navHidden) return;
-            navHidden = true;
             float hidden = nav.getHeight() > 0 ? nav.getHeight() + dp(24f) : dp(92f);
             nav.animate().translationY(hidden).setDuration(NAV_HIDE_ANIM_MS)
                     .withEndAction(() -> {

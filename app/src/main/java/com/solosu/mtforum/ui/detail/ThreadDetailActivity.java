@@ -485,7 +485,10 @@ public class ThreadDetailActivity extends AppCompatActivity {
         this.binding.progressBar.setVisibility(8);
         this.binding.swipeRefresh.setEnabled(true);
         String message = TextUtils.isEmpty(e.getMessage()) ? "网络异常，请下拉刷新重试" : e.getMessage();
-        Toast.makeText(this, "加载失败: " + message, 0).show();
+        com.google.android.material.snackbar.Snackbar.make(binding.getRoot(),
+                com.solosu.mtforum.network.ResponsePolicy.errorMessage(e),
+                com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE)
+                .setAction("重试", view -> loadPostDetail()).show();
     }
 
     private String getReplyOrderUrl() {
@@ -713,7 +716,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
                             ThreadDetailActivity.this.lambda$bindData$26(str2, view);
                         }
                     });
-                    Glide.with((FragmentActivity) this).load(str2).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error((Drawable) new ColorDrawable(getColor(R.color.divider))).into(imageView);
+                    Glide.with((FragmentActivity) this).load(com.solosu.mtforum.network.ForumImages.request(str2, HttpClient.BASE_URL + "thread-" + tid + "-1-1.html")).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error((Drawable) new ColorDrawable(getColor(R.color.divider))).into(imageView);
                     this.binding.llImageGallery.addView(imageView);
                     iDpToPx = iDpToPx;
                     z2 = true;
@@ -1905,7 +1908,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
                     ThreadDetailActivity.this.lambda$renderHiddenContent$39(imgUrl, view);
                 }
             });
-            Glide.with((FragmentActivity) this).load(imgUrl).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error((Drawable) new ColorDrawable(getColor(R.color.divider))).into(imageView);
+            Glide.with((FragmentActivity) this).load(com.solosu.mtforum.network.ForumImages.request(imgUrl, HttpClient.BASE_URL + "thread-" + tid + "-1-1.html")).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error((Drawable) new ColorDrawable(getColor(R.color.divider))).into(imageView);
             this.binding.llImageGallery.addView(imageView);
         }
         this.binding.cardImageGallery.setVisibility(0);
@@ -2325,22 +2328,7 @@ private void viewHiddenContent() {
     }
 
     private static String normalizeImageUrl(String url) {
-        if (TextUtils.isEmpty(url)) {
-            return null;
-        }
-        if (url.startsWith("//")) {
-            return "https:" + url;
-        }
-        if (url.startsWith("/")) {
-            return HttpClient.BASE_URL + url.substring(1);
-        }
-        if (url.startsWith("./")) {
-            return HttpClient.BASE_URL + url.substring(2);
-        }
-        if (url.startsWith("http://") || url.startsWith("https://")) {
-            return url;
-        }
-        return HttpClient.BASE_URL + url;
+        return com.solosu.mtforum.network.ForumPageGuard.imageUrl(url, HttpClient.BASE_URL);
     }
 
     private void setupClickableLinks(TextView textView) {
@@ -4005,7 +3993,7 @@ private void viewHiddenContent() {
             final com.solosu.mtforum.util.UrlDrawable placeholder =
                     new com.solosu.mtforum.util.UrlDrawable(tv, dpToPx(120));
             com.bumptech.glide.Glide.with(this)
-                    .load(imgUrl)
+                    .load(com.solosu.mtforum.network.ForumImages.request(imgUrl, HttpClient.BASE_URL + "thread-" + tid + "-1-1.html"))
                     .into(new com.bumptech.glide.request.target.CustomTarget<Drawable>() {
                         @Override
                         public void onResourceReady(Drawable resource,
@@ -4024,6 +4012,15 @@ private void viewHiddenContent() {
                             }
                             resource.setBounds(0, 0, w, h);
                             placeholder.setReal(resource, tv);
+                        }
+
+                        @Override
+                        public void onLoadFailed(Drawable error) {
+                            Drawable fallback = getDrawable(R.drawable.ic_image_error);
+                            if (fallback != null) {
+                                fallback.setBounds(0, 0, dpToPx(48), dpToPx(48));
+                                placeholder.setReal(fallback, tv);
+                            }
                         }
 
                         @Override

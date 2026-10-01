@@ -132,8 +132,7 @@ public class ForumDetailActivity extends AppCompatActivity {
                 if (dy <= 0 || isLoading || !hasMore) return;
                 LinearLayoutManager lm = (LinearLayoutManager) rv.getLayoutManager();
                 if (lm != null && lm.findLastCompletelyVisibleItemPosition() >= lm.getItemCount() - 3) {
-                    currentPage++;
-                    loadThreads(currentPage);
+                    loadThreads(currentPage + 1);
                 }
             }
         });
@@ -220,6 +219,7 @@ public class ForumDetailActivity extends AppCompatActivity {
                         return;
                     }
 
+                    currentPage = page;
                     if (page == 1) {
                         allThreads.clear();
                     }
@@ -236,9 +236,14 @@ public class ForumDetailActivity extends AppCompatActivity {
             } catch (Exception e) {
                 e.printStackTrace();
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
                     isLoading = false;
+                    com.google.android.material.snackbar.Snackbar.make(binding.getRoot(),
+                            com.solosu.mtforum.network.ResponsePolicy.errorMessage(e),
+                            com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE)
+                            .setAction("重试", view -> loadThreads(page)).show();
                     if (page == 1 && allThreads.isEmpty()) {
-                        binding.tvEmpty.setText(R.string.forum_empty);
+                        binding.tvEmpty.setText(com.solosu.mtforum.network.ResponsePolicy.errorMessage(e));
                         binding.tvEmpty.setVisibility(View.VISIBLE);
                     }
                 });

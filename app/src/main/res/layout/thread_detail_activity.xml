@@ -743,7 +743,6 @@
 
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-        p:tint="@color/text_white" />
 
         <!-- ========== 底部快捷操作栏：表情 / 图片 / @ / 评论 / 点赞 / 收藏 / 分享 ========== -->
         <HorizontalScrollView

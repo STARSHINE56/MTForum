@@ -289,8 +289,7 @@ public class HomeFragment extends Fragment {
 
     private void loadMoreThreads() {
         if (isLoading || !hasMore) return;
-        currentPage++;
-        loadThreads(currentPage, false);
+        loadThreads(currentPage + 1, false);
     }
 
     private void loadThreads(int page, boolean isRefresh) {
@@ -305,7 +304,7 @@ public class HomeFragment extends Fragment {
                     String html = httpClient.get(url);
                     List<Thread> threads = ForumParser.parseThreadList(html);
 
-                    if (!isAdded()) return;
+                    if (!isAdded() || binding == null) return;
                     // 黑名单过滤:拉黑作者的帖子直接不进列表
                     if (threads != null) {
                         java.util.Set<String> black = com.solosu.mtforum.session.BlacklistManager.uidSet(requireContext());
@@ -318,8 +317,9 @@ public class HomeFragment extends Fragment {
                         }
                     }
                     requireActivity().runOnUiThread(() -> {
-                        if (!isAdded()) return;
+                        if (!isAdded() || binding == null) return;
                         if (threads != null && !threads.isEmpty()) {
+                            currentPage = page;
                             if (isRefresh) {
                                 threadAdapter.setThreadList(threads);
                             } else {
@@ -331,21 +331,22 @@ public class HomeFragment extends Fragment {
                             hasMore = false;
                             if (isRefresh) {
                                 threadAdapter.setThreadList(null);
+                                com.google.android.material.snackbar.Snackbar.make(binding.getRoot(), "暂无帖子", com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show();
                             }
                         }
                         isLoading = false;
                         binding.swipeRefresh.setRefreshing(false);
                     });
                 } catch (Exception e) {
-                    if (!isAdded()) return;
+                    if (!isAdded() || binding == null) return;
                     requireActivity().runOnUiThread(() -> {
-                        if (!isAdded()) return;
+                        if (!isAdded() || binding == null) return;
                         isLoading = false;
                         binding.swipeRefresh.setRefreshing(false);
-                        if (isRefresh && threadAdapter.getItemCount() == 0) {
-                            android.widget.Toast.makeText(requireContext(),
-                                    "加载失败: " + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
-                        }
+                        com.google.android.material.snackbar.Snackbar.make(binding.getRoot(),
+                                com.solosu.mtforum.network.ResponsePolicy.errorMessage(e),
+                                com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE)
+                                .setAction("重试", view -> loadThreads(page, isRefresh)).show();
                     });
                 }
             }

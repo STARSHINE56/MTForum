@@ -9,10 +9,10 @@ public final class ForumImages {
         String url = ForumPageGuard.imageUrl(source, pageUrl);
         if (url == null) return null;
         LazyHeaders.Builder headers = new LazyHeaders.Builder()
-                .addHeader("User-Agent", HttpClient.USER_AGENT)
-                .addHeader("Referer", pageUrl);
+                .setHeader("User-Agent", HttpClient.USER_AGENT)
+                .setHeader("Referer", pageUrl);
         String cookies = HttpClient.getInstance().getCookieStringForUrl(url);
-        if (!cookies.isEmpty()) headers.addHeader("Cookie", cookies);
+        if (!cookies.isEmpty()) headers.setHeader("Cookie", cookies);
         return new GlideUrl(url, headers.build());
     }
 }

@@ -302,7 +302,8 @@ public class ThreadAdapter extends RecyclerView.Adapter<ThreadAdapter.ViewHolder
                 imageView.setBackgroundResource(R.drawable.thread_image_bg);
                 imageView.setClipToOutline(true);
                 Glide.with(context)
-                        .load(imageUrls.get(i))
+                        .load(com.solosu.mtforum.network.ForumImages.request(imageUrls.get(i),
+                                com.solosu.mtforum.network.HttpClient.BASE_URL + "thread-" + thread.getTid() + "-1-1.html"))
                         .placeholder(R.drawable.ic_image_placeholder)
                         .error(R.drawable.ic_image_error)
                         .centerCrop()
@@ -314,7 +315,8 @@ public class ThreadAdapter extends RecyclerView.Adapter<ThreadAdapter.ViewHolder
             if (thumbnailUrl != null && !thumbnailUrl.isEmpty()) {
                 holder.ivThumbnail.setVisibility(View.VISIBLE);
                 Glide.with(context)
-                        .load(thumbnailUrl)
+                        .load(com.solosu.mtforum.network.ForumImages.request(thumbnailUrl,
+                                com.solosu.mtforum.network.HttpClient.BASE_URL + "thread-" + thread.getTid() + "-1-1.html"))
                         .placeholder(R.drawable.ic_image_placeholder)
                         .error(R.drawable.ic_image_error)
                         .centerCrop()

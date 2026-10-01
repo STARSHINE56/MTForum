@@ -55,7 +55,6 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-import androidx.webkit.internal.AssetHelper;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
@@ -271,7 +270,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
     }
 
     private void lambda$onCreate$3(View v) {
-        this.binding.recyclerReplies.setVisibility(0);
+        this.binding.recyclerReplies.setVisibility(View.VISIBLE);
         this.binding.nestedScroll.post(new Runnable() {
             @Override // java.lang.Runnable
             public final void run() {
@@ -311,7 +310,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
             int contentHeight = child.getHeight() - scrollView.getHeight();
             boolean isAtBottom = scrollY >= contentHeight + (-200);
             boolean isNearBottom = scrollY >= contentHeight + (-400);
-            if (isNearBottom && this.binding.btnLoadMore.getVisibility() == 8 && this.postDetail != null) {
+            if (isNearBottom && this.binding.btnLoadMore.getVisibility() == View.GONE && this.postDetail != null) {
                 int currentPage = this.postDetail.getCurrentPage();
                 int totalPages = this.postDetail.getTotalPages();
                 if (currentPage < totalPages && !this.isLoadingMore) {
@@ -396,7 +395,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
         if (isFinishing() || isDestroyed()) {
             return;
         }
-        this.binding.progressBar.setVisibility(0);
+        this.binding.progressBar.setVisibility(View.VISIBLE);
         this.binding.swipeRefresh.setEnabled(false);
         new java.lang.Thread(new Runnable() {
             @Override // java.lang.Runnable
@@ -469,7 +468,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
                         public final void run() {
                             if (isFinishing() || isDestroyed()) return;
                             Toast.makeText(ThreadDetailActivity.this,
-                                    "已自动回帖解锁，正在刷新…", 0).show();
+                                    "已自动回帖解锁，正在刷新…", Toast.LENGTH_SHORT).show();
                             refreshPostDetail();
                         }
                     });
@@ -482,7 +481,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
         if (isFinishing() || isDestroyed()) {
             return;
         }
-        this.binding.progressBar.setVisibility(8);
+        this.binding.progressBar.setVisibility(View.GONE);
         this.binding.swipeRefresh.setEnabled(true);
         String message = TextUtils.isEmpty(e.getMessage()) ? "网络异常，请下拉刷新重试" : e.getMessage();
         com.google.android.material.snackbar.Snackbar.make(binding.getRoot(),
@@ -565,7 +564,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
         }
         this.binding.swipeRefresh.setRefreshing(false);
         String message = TextUtils.isEmpty(e.getMessage()) ? "网络异常，请稍后重试" : e.getMessage();
-        Toast.makeText(this, "刷新失败: " + message, 0).show();
+        Toast.makeText(this, "刷新失败: " + message, Toast.LENGTH_SHORT).show();
     }
 
     private void bindData(final PostDetail postDetail, boolean z) {
@@ -573,19 +572,19 @@ public class ThreadDetailActivity extends AppCompatActivity {
             return;
         }
         if (postDetail == null) {
-            this.binding.progressBar.setVisibility(8);
+            this.binding.progressBar.setVisibility(View.GONE);
             this.binding.swipeRefresh.setEnabled(true);
-            Toast.makeText(this, "帖子内容为空，请下拉刷新重试", 0).show();
+            Toast.makeText(this, "帖子内容为空，请下拉刷新重试", Toast.LENGTH_SHORT).show();
             return;
         }
         this.postDetail = postDetail;
-        this.binding.progressBar.setVisibility(8);
+        this.binding.progressBar.setVisibility(View.GONE);
         this.binding.swipeRefresh.setEnabled(true);
         if (!TextUtils.isEmpty(postDetail.getForumName())) {
-            this.binding.tvForumName.setVisibility(0);
+            this.binding.tvForumName.setVisibility(View.VISIBLE);
             this.binding.tvForumName.setText(postDetail.getForumName());
         } else {
-            this.binding.tvForumName.setVisibility(8);
+            this.binding.tvForumName.setVisibility(View.GONE);
         }
         this.binding.tvThreadTitle.setText(!TextUtils.isEmpty(postDetail.getTitle()) ? postDetail.getTitle() : "");
         // build75: 长按标题 -> 举报帖子
@@ -620,19 +619,19 @@ public class ThreadDetailActivity extends AppCompatActivity {
             });
         }
         if (!TextUtils.isEmpty(postDetail.getAuthorLevel())) {
-            this.binding.tvAuthorLevel.setVisibility(0);
+            this.binding.tvAuthorLevel.setVisibility(View.VISIBLE);
             this.binding.tvAuthorLevel.setText(postDetail.getAuthorLevel());
         } else {
-            this.binding.tvAuthorLevel.setVisibility(8);
+            this.binding.tvAuthorLevel.setVisibility(View.GONE);
         }
         this.binding.tvPublishTime.setText(!TextUtils.isEmpty(postDetail.getPublishTime()) ? postDetail.getPublishTime() : "");
-        this.binding.tvLocation.setVisibility(8);
+        this.binding.tvLocation.setVisibility(View.GONE);
         // 收藏数回填缓存:详情页拿到数字后存进 FavoritesCache,列表卡片第四格就能显示
         if (postDetail.getFavoriteCount() > 0) {
             com.solosu.mtforum.session.FavoritesCache.put(this, postDetail.getTid(), postDetail.getFavoriteCount());
         }
         if (this.httpClient.isLoggedIn() && !TextUtils.isEmpty(postDetail.getAuthor())) {
-            this.binding.btnFollow.setVisibility(0);
+            this.binding.btnFollow.setVisibility(View.VISIBLE);
             if (isOwnThread(postDetail)) {
                 // build73: 自己的帖子 -> 右上角是「编辑」(不是关注)
                 this.binding.btnFollow.setText("编辑");
@@ -652,13 +651,13 @@ public class ThreadDetailActivity extends AppCompatActivity {
                 });
             }
         } else {
-            this.binding.btnFollow.setVisibility(8);
+            this.binding.btnFollow.setVisibility(View.GONE);
         }
         String contentHtml = postDetail.getContentHtml();
         String[] strArrReplaceHiddenQuoteWithPlaceholder = {null, ""};
         if (!TextUtils.isEmpty(contentHtml)) {
             String strConvertBBCodeToHtml = BBCodeUtil.convertBBCodeToHtml(contentHtml);
-            this.binding.tvContent.setVisibility(0);
+            this.binding.tvContent.setVisibility(View.VISIBLE);
             ArrayList arrayList = new ArrayList();
             String[] strArrSplitEditFooter = splitEditFooter(strConvertBBCodeToHtml);
             String strExtractAndSeparateImages = extractAndSeparateImages(strArrSplitEditFooter[0], arrayList);
@@ -671,16 +670,16 @@ public class ThreadDetailActivity extends AppCompatActivity {
                 }
             }
             if (!TextUtils.isEmpty(strArrSplitEditFooter[1])) {
-                this.binding.layoutEditFooter.setVisibility(0);
+                this.binding.layoutEditFooter.setVisibility(View.VISIBLE);
                 this.binding.tvEditFooter.setText(strArrSplitEditFooter[1]);
-                this.binding.viewContentTopDivider.setVisibility(8);
+                this.binding.viewContentTopDivider.setVisibility(View.GONE);
                 adjustEditFooterDividerWidth();
                 LinearLayout.LayoutParams layoutParams = (LinearLayout.LayoutParams) this.binding.frameContent.getLayoutParams();
                 layoutParams.topMargin = 0;
                 this.binding.frameContent.setLayoutParams(layoutParams);
             } else {
-                this.binding.layoutEditFooter.setVisibility(8);
-                this.binding.viewContentTopDivider.setVisibility(0);
+                this.binding.layoutEditFooter.setVisibility(View.GONE);
+                this.binding.viewContentTopDivider.setVisibility(View.VISIBLE);
                 LinearLayout.LayoutParams layoutParams2 = (LinearLayout.LayoutParams) this.binding.frameContent.getLayoutParams();
                 layoutParams2.topMargin = dpToPx(12);
                 this.binding.frameContent.setLayoutParams(layoutParams2);
@@ -698,8 +697,8 @@ public class ThreadDetailActivity extends AppCompatActivity {
             applyHiddenNoticeHighlight(this.binding.tvContent.getText(), hiddenNotice);
             setupClickableLinks(this.binding.tvContent);
             if (!arrayList.isEmpty()) {
-                this.binding.cardImageGallery.setVisibility(0);
-                this.binding.hsvImageGallery.setVisibility(0);
+                this.binding.cardImageGallery.setVisibility(View.VISIBLE);
+                this.binding.hsvImageGallery.setVisibility(View.VISIBLE);
                 this.binding.llImageGallery.removeAllViews();
                 FrostedGlassHelper.applyToCardViews(this.binding.cardImageGallery, this);
                 int iDpToPx = dpToPx(ItemTouchHelper.Callback.DEFAULT_DRAG_ANIMATION_DURATION);
@@ -728,12 +727,12 @@ public class ThreadDetailActivity extends AppCompatActivity {
                     }
                 });
             } else {
-                this.binding.cardImageGallery.setVisibility(8);
+                this.binding.cardImageGallery.setVisibility(View.GONE);
             }
         } else {
-            this.binding.tvContent.setVisibility(8);
-            this.binding.cardImageGallery.setVisibility(8);
-            this.binding.tvContent.setVisibility(0);
+            this.binding.tvContent.setVisibility(View.GONE);
+            this.binding.cardImageGallery.setVisibility(View.GONE);
+            this.binding.tvContent.setVisibility(View.VISIBLE);
             this.binding.tvContent.setText("[内容加载中，请刷新重试]");
             this.binding.tvContent.setTextColor(getColor(R.color.text_hint));
             this.binding.tvContent.setTextSize(14.0f);
@@ -746,20 +745,20 @@ public class ThreadDetailActivity extends AppCompatActivity {
                 && !com.solosu.mtforum.ai.AutoReplyEngine.isLockedHidden(postDetail.getHiddenContentHtml());
         if (hiddenUnlocked) {
             // 已登录且可获取隐藏内容:正文中的胶囊只显示短提示,下方直接展示完整内容
-            this.binding.layoutHiddenContent.setVisibility(0);
-            this.binding.tvHiddenContentHint.setVisibility(8);
-            this.binding.btnViewHidden.setVisibility(8);
+            this.binding.layoutHiddenContent.setVisibility(View.VISIBLE);
+            this.binding.tvHiddenContentHint.setVisibility(View.GONE);
+            this.binding.btnViewHidden.setVisibility(View.GONE);
             renderHiddenContent(postDetail.getHiddenContentHtml());
         } else if (hasHidden) {
             // 未登录或暂无内容:显示按钮引导查看(点击会提示登录或重新加载)
-            this.binding.layoutHiddenContent.setVisibility(0);
-            this.binding.tvHiddenContentHint.setVisibility(0);
-            this.binding.btnViewHidden.setVisibility(0);
-            this.binding.tvHiddenContent.setVisibility(8);
+            this.binding.layoutHiddenContent.setVisibility(View.VISIBLE);
+            this.binding.tvHiddenContentHint.setVisibility(View.VISIBLE);
+            this.binding.btnViewHidden.setVisibility(View.VISIBLE);
+            this.binding.tvHiddenContent.setVisibility(View.GONE);
             // 自动解锁：进入帖子发现是「回复可见」时，后台直接回复解锁
             maybeAutoUnlock();
         } else {
-            this.binding.layoutHiddenContent.setVisibility(8);
+            this.binding.layoutHiddenContent.setVisibility(View.GONE);
         }
         if (postDetail.isLikedStateKnown()) {
             this.isLiked = postDetail.isLiked();
@@ -799,18 +798,18 @@ public class ThreadDetailActivity extends AppCompatActivity {
         updateReplyFilterAndOrder();
         int replyCount = postDetail.getReplyCount();
         if (replyCount > 0) {
-            this.binding.tvReplyCount.setVisibility(0);
+            this.binding.tvReplyCount.setVisibility(View.VISIBLE);
             this.binding.tvReplyCount.setText("(" + replyCount + ")");
         } else {
-            this.binding.tvReplyCount.setVisibility(8);
+            this.binding.tvReplyCount.setVisibility(View.GONE);
         }
         if (replies == null || replies.isEmpty() || postDetail.getCurrentPage() < postDetail.getTotalPages() || !TextUtils.isEmpty(postDetail.getNextPageUrl())) {
         }
         if (replyCount > (replies != null ? replies.size() : 0)) {
         }
-        this.binding.btnLoadMore.setVisibility(8);
-        this.binding.layoutReply.setVisibility(this.httpClient.isLoggedIn() ? 0 : 8);
-        this.binding.layoutThreadActions.setVisibility(this.httpClient.isLoggedIn() ? 0 : 8);
+        this.binding.btnLoadMore.setVisibility(View.GONE);
+        this.binding.layoutReply.setVisibility(this.httpClient.isLoggedIn() ? View.VISIBLE : View.GONE);
+        this.binding.layoutThreadActions.setVisibility(this.httpClient.isLoggedIn() ? View.VISIBLE : View.GONE);
         int rewardCount = postDetail.getRewardCount();
         int goodReviewCount = postDetail.getGoodReviewCount();
         int rewardCoins = postDetail.getRewardCoins();
@@ -820,14 +819,14 @@ public class ThreadDetailActivity extends AppCompatActivity {
             z3 = false;
         }
         if (this.httpClient.isLoggedIn() && z3) {
-            this.binding.layoutRewardReviewStats.setVisibility(0);
+            this.binding.layoutRewardReviewStats.setVisibility(View.VISIBLE);
             this.binding.tvRewardCount.setText(String.valueOf(rewardCount));
             this.binding.tvRewardCoins.setText("共计 " + rewardCoins + " 金币");
             this.binding.tvGoodReviewCount.setText(String.valueOf(goodReviewCount));
             bindAvatarStrip(this.binding.llRewardAvatars, rewardUserAvatars);
             bindAvatarStrip(this.binding.llGoodReviewAvatars, goodReviewUserAvatars);
         } else {
-            this.binding.layoutRewardReviewStats.setVisibility(8);
+            this.binding.layoutRewardReviewStats.setVisibility(View.GONE);
         }
         if (z) {
             this.binding.nestedScroll.scrollTo(0, 0);
@@ -857,9 +856,9 @@ public class ThreadDetailActivity extends AppCompatActivity {
     }
 
     private void lambda$bindData$28(View v) {
-        boolean isCollapsed = this.binding.hsvImageGallery.getVisibility() == 8;
+        boolean isCollapsed = this.binding.hsvImageGallery.getVisibility() == View.GONE;
         if (isCollapsed) {
-            this.binding.hsvImageGallery.setVisibility(0);
+            this.binding.hsvImageGallery.setVisibility(View.VISIBLE);
             this.binding.hsvImageGallery.setAlpha(0.0f);
             this.binding.hsvImageGallery.animate().alpha(1.0f).setDuration(300L).start();
             this.binding.btnCollapseImages.animate().rotation(90.0f).setDuration(200L).start();
@@ -875,7 +874,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
     }
 
     private void lambda$bindData$27() {
-        this.binding.hsvImageGallery.setVisibility(8);
+        this.binding.hsvImageGallery.setVisibility(View.GONE);
     }
 
     private String getReplyOrder() {
@@ -911,11 +910,11 @@ public class ThreadDetailActivity extends AppCompatActivity {
         this.binding.btnReplyOrder.setText(this.repliesDescending ? R.string.reply_order_desc : R.string.reply_order_asc);
         this.binding.btnReplyOrder.setTextColor(getColor(this.repliesDescending ? R.color.primary : R.color.text_secondary));
         if (result.isEmpty()) {
-            this.binding.recyclerReplies.setVisibility(8);
-            this.binding.tvEmptyReplies.setVisibility(0);
+            this.binding.recyclerReplies.setVisibility(View.GONE);
+            this.binding.tvEmptyReplies.setVisibility(View.VISIBLE);
         } else {
-            this.binding.recyclerReplies.setVisibility(0);
-            this.binding.tvEmptyReplies.setVisibility(8);
+            this.binding.recyclerReplies.setVisibility(View.VISIBLE);
+            this.binding.tvEmptyReplies.setVisibility(View.GONE);
         }
     }
 
@@ -976,7 +975,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
             more.setTextSize(10.0f);
             more.setTextColor(-1);
             GradientDrawable bg = new GradientDrawable();
-            bg.setShape(1);
+            bg.setShape(GradientDrawable.OVAL);
             bg.setColor(-1728053248);
             bg.setStroke(dpToPx(1), -1);
             more.setBackground(bg);
@@ -997,7 +996,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
             etReplyDialog.setText(prefillText);
             etReplyDialog.setSelection(prefillText.length());
             tvTarget.setText(prefillText);
-            tvTarget.setVisibility(0);
+            tvTarget.setVisibility(View.VISIBLE);
         }
         FrostedGlassHelper.applyToCardViews(dialogCard, this);
         this.mBottomSheetDialog = new BottomSheetDialog(this);
@@ -1203,7 +1202,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
             this.binding.etReply.setText("");
         }
         refreshAllImagePreviews();
-        Toast.makeText(this, R.string.reply_success, 0).show();
+        Toast.makeText(this, R.string.reply_success, Toast.LENGTH_SHORT).show();
         if (this.mBottomSheetDialog != null && this.mBottomSheetDialog.isShowing()) {
             this.mBottomSheetDialog.dismiss();
         }
@@ -1307,9 +1306,9 @@ public class ThreadDetailActivity extends AppCompatActivity {
         if (count > 0) {
             // build65: 帖子内角标显示真实数字(原 99+ 截断),超大值才用 999+
             badge.setText(count > 999 ? "999+" : String.valueOf(count));
-            badge.setVisibility(0);
+            badge.setVisibility(View.VISIBLE);
         } else {
-            badge.setVisibility(8);
+            badge.setVisibility(View.GONE);
         }
     }
 
@@ -1353,7 +1352,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
         int i;
         this.binding.btnFollow.setEnabled(true);
         if (!success) {
-            Toast.makeText(this, "关注操作失败，请稍后重试", 0).show();
+            Toast.makeText(this, "关注操作失败，请稍后重试", Toast.LENGTH_SHORT).show();
             return;
         }
         this.postDetail.setFollowed(targetState);
@@ -1363,7 +1362,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
         } else {
             i = R.string.action_unfollow_success;
         }
-        Toast.makeText(this, i, 0).show();
+        Toast.makeText(this, i, Toast.LENGTH_SHORT).show();
     }
 
     private void toggleFavorite() {
@@ -1451,12 +1450,12 @@ public class ThreadDetailActivity extends AppCompatActivity {
             updateFavoriteIcon();
             this.favoriteCount = Math.max(0, this.favoriteCount + (z2 ? 1 : -1));
             updateCountBadge(this.binding.tvFavoriteBadge, this.favoriteCount);
-            Toast.makeText(this, z2 ? "已收藏" : "已取消收藏", 0).show();
+            Toast.makeText(this, z2 ? "已收藏" : "已取消收藏", Toast.LENGTH_SHORT).show();
             return;
         }
         this.isFavorited = z3;
         updateFavoriteIcon();
-        Toast.makeText(this, TextUtils.isEmpty(str) ? "收藏操作失败，请稍后重试" : str, 0).show();
+        Toast.makeText(this, TextUtils.isEmpty(str) ? "收藏操作失败，请稍后重试" : str, Toast.LENGTH_SHORT).show();
     }
 
     private String extractFavoriteActionUrl(String html) {
@@ -1815,7 +1814,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
     }
 
     private void lambda$adjustEditFooterDividerWidth$38() {
-        if (this.binding.tvEditFooter.getVisibility() != 0) {
+        if (this.binding.tvEditFooter.getVisibility() != View.VISIBLE) {
             return;
         }
         String text = this.binding.tvEditFooter.getText().toString().trim();
@@ -1890,7 +1889,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
         if (this.binding == null || TextUtils.isEmpty(hiddenHtml)) {
             return;
         }
-        this.binding.tvHiddenContent.setVisibility(0);
+        this.binding.tvHiddenContent.setVisibility(View.VISIBLE);
         String bbcodeConverted = BBCodeUtil.convertBBCodeToHtml(hiddenHtml);
         List<String> hiddenImageUrls = new ArrayList<>();
         String cleanHiddenHtml = extractAndSeparateImages(bbcodeConverted, hiddenImageUrls);
@@ -1911,7 +1910,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
             Glide.with((FragmentActivity) this).load(com.solosu.mtforum.network.ForumImages.request(imgUrl, HttpClient.BASE_URL + "thread-" + tid + "-1-1.html")).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error((Drawable) new ColorDrawable(getColor(R.color.divider))).into(imageView);
             this.binding.llImageGallery.addView(imageView);
         }
-        this.binding.cardImageGallery.setVisibility(0);
+        this.binding.cardImageGallery.setVisibility(View.VISIBLE);
         FrostedGlassHelper.applyToCardViews(this.binding.cardImageGallery, this);
     }
 
@@ -1926,12 +1925,12 @@ private void viewHiddenContent() {
             promptLogin();
             return;
         }
-        this.binding.tvHiddenContentHint.setVisibility(8);
-        this.binding.btnViewHidden.setVisibility(8);
+        this.binding.tvHiddenContentHint.setVisibility(View.GONE);
+        this.binding.btnViewHidden.setVisibility(View.GONE);
         if (!TextUtils.isEmpty(this.postDetail.getHiddenContentHtml())) {
             renderHiddenContent(this.postDetail.getHiddenContentHtml());
         } else {
-            Toast.makeText(this, R.string.hidden_content_prompt, 0).show();
+            Toast.makeText(this, R.string.hidden_content_prompt, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -2067,16 +2066,16 @@ private void viewHiddenContent() {
             this.displayedReplies = new ArrayList(merged);
             updateReplyFilterAndOrder();
         } else {
-            Toast.makeText(this, R.string.no_more_replies, 0).show();
+            Toast.makeText(this, R.string.no_more_replies, Toast.LENGTH_SHORT).show();
         }
-        this.binding.btnLoadMore.setVisibility(8);
+        this.binding.btnLoadMore.setVisibility(View.GONE);
     }
 
     private void lambda$loadMoreReplies$41(Exception e) {
         this.binding.btnLoadMore.setEnabled(true);
         this.binding.btnLoadMore.setText(R.string.load_more_replies);
         this.binding.loadingMore.setVisibility(View.GONE);
-        Toast.makeText(this, "加载失败: " + e.getMessage(), 0).show();
+        Toast.makeText(this, "加载失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
     }
 
 
@@ -2156,7 +2155,7 @@ private void viewHiddenContent() {
     }
 
     private void lambda$showReplyFailure$44(String message) {
-        Toast.makeText(this, message, 0).show();
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     private void showKickDialog() {
@@ -2174,7 +2173,7 @@ private void viewHiddenContent() {
         String currentUid = UserSessionManager.getInstance().getUid(getApplicationContext());
         String authorUid = this.postDetail != null ? this.postDetail.getAuthorUid() : null;
         if (!TextUtils.isEmpty(currentUid) && !TextUtils.isEmpty(authorUid) && currentUid.equals(authorUid)) {
-            Toast.makeText(this, "不能点赞自己的帖子", 0).show();
+            Toast.makeText(this, "不能点赞自己的帖子", Toast.LENGTH_SHORT).show();
             return;
         }
         final boolean targetState = !this.isLiked;
@@ -2252,13 +2251,13 @@ private void viewHiddenContent() {
                 this.postDetail.setLiked(targetState);
                 this.postDetail.setLikedStateKnown(true);
             }
-            Toast.makeText(this, targetState ? "已点赞" : "已取消点赞", 0).show();
+            Toast.makeText(this, targetState ? "已点赞" : "已取消点赞", Toast.LENGTH_SHORT).show();
             return;
         }
         this.isLiked = oldState;
         this.likeCount = oldCount;
         updateLikeIcon();
-        Toast.makeText(this, TextUtils.isEmpty(finalError) ? "点赞操作失败，请稍后重试" : finalError, 0).show();
+        Toast.makeText(this, TextUtils.isEmpty(finalError) ? "点赞操作失败，请稍后重试" : finalError, Toast.LENGTH_SHORT).show();
     }
 
     private Boolean queryServerLikeState() {
@@ -2552,9 +2551,9 @@ private void viewHiddenContent() {
         List<String> names = postDetail.getLikeUserNames();
         if (uids != null && !uids.isEmpty()) {
             likeUsersAdapter.setData(uids, avatars, names);
-            this.binding.layoutLikeUsers.setVisibility(0);
+            this.binding.layoutLikeUsers.setVisibility(View.VISIBLE);
         } else {
-            this.binding.layoutLikeUsers.setVisibility(8);
+            this.binding.layoutLikeUsers.setVisibility(View.GONE);
         }
     }
 
@@ -2699,7 +2698,7 @@ private void viewHiddenContent() {
         try {
             startActivity(intent);
         } catch (Exception e) {
-            Toast.makeText(this, "无法打开图片", 0).show();
+            Toast.makeText(this, "无法打开图片", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -3091,7 +3090,7 @@ private void viewHiddenContent() {
     }
 
     private void lambda$showUploadError$52(String message) {
-        Toast.makeText(this, message, 0).show();
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     private void showUploadError(final String message) {
@@ -3238,7 +3237,7 @@ private void viewHiddenContent() {
             float scale = 1920.0f / largest;
             decoder.setTargetSize(Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale)));
         }
-        decoder.setAllocator(1);
+        decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
     }
 
     private File copyUriToTempFile(Uri uri, String fileName) throws Exception {
@@ -3292,7 +3291,7 @@ private void viewHiddenContent() {
         }
         String shareText = this.postDetail.getTitle() + "\n" + HttpClient.BASE_URL + "thread-" + this.tid + "-1-1.html";
         Intent shareIntent = new Intent("android.intent.action.SEND");
-        shareIntent.setType(AssetHelper.DEFAULT_MIME_TYPE);
+        shareIntent.setType("text/plain");
         shareIntent.putExtra("android.intent.extra.TEXT", shareText);
         startActivity(Intent.createChooser(shareIntent, "分享帖子"));
     }
@@ -3755,7 +3754,7 @@ private void viewHiddenContent() {
     private void lambda$performReward$55(boolean success, int amount, String rewardError) {
         String string;
         if (success) {
-            Toast.makeText(this, getString(R.string.reward_success, new Object[]{Integer.valueOf(amount)}), 0).show();
+            Toast.makeText(this, getString(R.string.reward_success, new Object[]{Integer.valueOf(amount)}), Toast.LENGTH_SHORT).show();
             refreshPostDetail();
         } else {
             if (TextUtils.isEmpty(rewardError)) {
@@ -3763,12 +3762,12 @@ private void viewHiddenContent() {
             } else {
                 string = rewardError;
             }
-            Toast.makeText(this, string, 1).show();
+            Toast.makeText(this, string, Toast.LENGTH_LONG).show();
         }
     }
 
     private void lambda$performReward$56() {
-        Toast.makeText(this, R.string.reward_failed, 0).show();
+        Toast.makeText(this, R.string.reward_failed, Toast.LENGTH_SHORT).show();
     }
 
     private boolean isForumActionResponseSuccessful(String response) {
@@ -3859,15 +3858,15 @@ private void viewHiddenContent() {
 
     private void lambda$submitKickRequest$58(boolean success) {
         if (success) {
-            Toast.makeText(this, R.string.kick_success, 0).show();
+            Toast.makeText(this, R.string.kick_success, Toast.LENGTH_SHORT).show();
             refreshPostDetail();
         } else {
-            Toast.makeText(this, R.string.kick_failed, 0).show();
+            Toast.makeText(this, R.string.kick_failed, Toast.LENGTH_SHORT).show();
         }
     }
 
     private void lambda$submitKickRequest$59() {
-        Toast.makeText(this, R.string.kick_failed, 0).show();
+        Toast.makeText(this, R.string.kick_failed, Toast.LENGTH_SHORT).show();
     }
 
     private void performKick() {

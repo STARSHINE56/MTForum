@@ -1,0 +1,44 @@
+name: Forum failure checks
+on:
+  push:
+    branches: [fix/forum-network-errors]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: forum-check-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.0.0'
+      - name: Install project SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: gradle :app:lintDebug --stacktrace
+      - name: Debug APK
+        if: ${{ !cancelled() }}
+        run: gradle :app:assembleDebug --stacktrace
+      - name: Upload reports and APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtforum-debug-and-reports
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/reports/lint-results-debug.*

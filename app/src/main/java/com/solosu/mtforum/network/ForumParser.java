@@ -1,6 +1,6 @@
 package com.solosu.mtforum.network;
 
-import android.text.TextUtils;
+
 
 import com.solosu.mtforum.model.ChatMessage;
 import com.solosu.mtforum.model.ForumCategory;
@@ -32,8 +32,12 @@ import java.util.regex.Pattern;
  * 解析 Discuz! 移动端输出的结构化 HTML
  */
 public class ForumParser {
+    private static final class TextUtils {
+        static boolean isEmpty(CharSequence value) { return value == null || value.length() == 0; }
+    }
 
-    private static final String BASE_DOMAIN = "https://bbs.binmt.cc/";
+
+    private static final String BASE_DOMAIN = ForumPageGuard.BASE_URL;
 
     public static String getBaseDomain() {
         return BASE_DOMAIN;
@@ -44,13 +48,13 @@ public class ForumParser {
      */
     public static List<Thread> parseThreadList(String html) {
         List<Thread> threads = new ArrayList<>();
-        Document doc = Jsoup.parse(html);
+        Document doc = ForumPageGuard.parse(html);
 
         // Comiis App 模板的帖子容器
         Elements items = doc.select("li.forumlist_li");
         if (items.isEmpty()) {
             // 兜底：查找包含 thread- 链接的 li 元素
-            Elements links = doc.select("a[href*=thread-]");
+            Elements links = doc.select("a[href*=thread-], a[href*=viewthread][href*=tid=]");
             for (Element link : links) {
                 Element parent = link.closest("li");
                 if (parent != null) {
@@ -60,17 +64,18 @@ public class ForumParser {
         }
 
         // 预编译正则
-        Pattern tidPattern = Pattern.compile("thread-(\\d+)-1-1\\.html");
+        Pattern tidPattern = Pattern.compile("(?:thread-|[?&]tid=)(\\d+)");
         Pattern fidPattern = Pattern.compile("forum-(\\d+)-1\\.html");
 
+        Set<String> seen = new HashSet<>();
         for (Element item : items) {
             try {
                 Thread t = new Thread();
 
                 // === 标题 & tid ===
-                Element titleLink = item.select(".mmlist_li_box h2 a[href*=thread-]").first();
+                Element titleLink = item.select(".mmlist_li_box h2 a[href*=thread-], .mmlist_li_box h2 a[href*=viewthread][href*=tid=]").first();
                 if (titleLink == null) {
-                    titleLink = item.select("a[href*=thread-]").first();
+                    titleLink = item.select("a[href*=thread-], a[href*=viewthread][href*=tid=]").first();
                 }
                 if (titleLink == null) continue;
 
@@ -78,6 +83,7 @@ public class ForumParser {
                 Matcher tidMatcher = tidPattern.matcher(href);
                 if (!tidMatcher.find()) continue;
                 t.setTid(tidMatcher.group(1));
+                if (!seen.add(t.getTid())) continue;
 
                 // 标题：只取 ownText（排除热度徽章等子元素文本）
                 String title = titleLink.ownText().trim();
@@ -174,6 +180,7 @@ public class ForumParser {
             } catch (Exception ignored) {}
         }
 
+        ForumPageGuard.requireList(doc, threads.size());
         return threads;
     }
 
@@ -331,13 +338,13 @@ public class ForumParser {
      */
     public static List<Thread> parseForumThreadList(String html) {
         List<Thread> threads = new ArrayList<>();
-        Document doc = Jsoup.parse(html);
+        Document doc = ForumPageGuard.parse(html);
 
         // Comiis App 模板的帖子容器
         Elements items = doc.select("li.forumlist_li");
         if (items.isEmpty()) {
             // 兜底:查找包含 thread- 链接的 li 元素
-            Elements links = doc.select("a[href*=thread-]");
+            Elements links = doc.select("a[href*=thread-], a[href*=viewthread][href*=tid=]");
             for (Element link : links) {
                 Element parent = link.closest("li");
                 if (parent != null) {
@@ -347,17 +354,18 @@ public class ForumParser {
         }
 
         // 预编译正则
-        Pattern tidPattern = Pattern.compile("thread-(\\d+)-1-1\\.html");
+        Pattern tidPattern = Pattern.compile("(?:thread-|[?&]tid=)(\\d+)");
         Pattern fidPattern = Pattern.compile("forum-(\\d+)-1\\.html");
 
+        Set<String> seen = new HashSet<>();
         for (Element item : items) {
             try {
                 Thread t = new Thread();
 
                 // === 标题 & tid ===
-                Element titleLink = item.select(".mmlist_li_box h2 a[href*=thread-]").first();
+                Element titleLink = item.select(".mmlist_li_box h2 a[href*=thread-], .mmlist_li_box h2 a[href*=viewthread][href*=tid=]").first();
                 if (titleLink == null) {
-                    titleLink = item.select("a[href*=thread-]").first();
+                    titleLink = item.select("a[href*=thread-], a[href*=viewthread][href*=tid=]").first();
                 }
                 if (titleLink == null) continue;
 
@@ -365,6 +373,7 @@ public class ForumParser {
                 Matcher tidMatcher = tidPattern.matcher(href);
                 if (!tidMatcher.find()) continue;
                 t.setTid(tidMatcher.group(1));
+                if (!seen.add(t.getTid())) continue;
 
                 // 标题：只取 ownText（排除热度徽章等子元素文本）
                 String title = titleLink.ownText().trim();
@@ -463,6 +472,7 @@ public class ForumParser {
             } catch (Exception ignored) {}
         }
 
+        ForumPageGuard.requireList(doc, threads.size());
         return threads;
     }
 
@@ -1641,19 +1651,10 @@ public class ForumParser {
 
     public static PostDetail parseThreadDetail(String html) {
         PostDetail detail = new PostDetail();
-
-        // 某些帖子请求可能返回空响应（网络断开、服务端临时无响应或被重定向）。
-        // 不能把 null 直接交给 Jsoup/Pattern.matcher，否则 Android 会抛出
-        // "s == null" 这类不具备可读性的 NPE，详情页就会完全空白。
-        if (TextUtils.isEmpty(html)) {
-            detail.setReplies(new ArrayList<ReplyItem>());
-            detail.setImageUrls(new ArrayList<String>());
-            detail.setCurrentPage(1);
-            detail.setTotalPages(1);
-            return detail;
+        Document doc = ForumPageGuard.parse(html);
+        if (doc.select(".comiis_postli, .comiis_message, td.t_f, div.postbody, article").isEmpty()) {
+            throw new IllegalStateException("帖子详情解析失败，页面格式可能已变化，请重试");
         }
-
-        Document doc = Jsoup.parse(html);
 
         // === 1. 版块信息 ===
         Element forumLink = doc.select("div.comiis_head a.kmtit[href*=forum-]").first();
@@ -2567,19 +2568,7 @@ detail.setTotalPages(maxPage);
      * MT论坛移动版使用 comiis_loadimages 属性存储真实URL
      */
     private static String resolveAttachmentUrl(String url) {
-        if (TextUtils.isEmpty(url)) return null;
-        // 如果已经是完整URL
-        if (url.startsWith("http://") || url.startsWith("https://")) {
-            return url;
-        }
-        if (url.startsWith("//")) {
-            return "https:" + url;
-        }
-        if (url.startsWith("/")) {
-            return BASE_DOMAIN + url.substring(1);
-        }
-        // 纯相对路径
-        return BASE_DOMAIN + url;
+        return ForumPageGuard.imageUrl(url, BASE_DOMAIN);
     }
 
     /**
@@ -2881,7 +2870,7 @@ detail.setTotalPages(maxPage);
      */
     public static CommunityPageData parseCommunityPage(String html) {
         CommunityPageData data = new CommunityPageData();
-        Document doc = Jsoup.parse(html);
+        Document doc = ForumPageGuard.parse(html);
         
         // === 1. 提取 formhash ===
         // 方式1：从 input[name=formhash] 提取
@@ -3030,6 +3019,10 @@ detail.setTotalPages(maxPage);
         data.setForums(allForums);
         data.setCategories(categories);
         
+        if ((data.getForums() == null || data.getForums().isEmpty())
+                && (data.getCategories() == null || data.getCategories().isEmpty())) {
+            throw new IllegalStateException("论坛版块解析失败，请重试");
+        }
         return data;
     }
 

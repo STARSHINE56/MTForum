@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 基于 OkHttp 封装，支持会话保持（Cookie 持久化）
  */
 public class HttpClient {
-    public static final String BASE_URL = "https://bbs.binmt.cc/";
+    public static final String BASE_URL = ForumPageGuard.BASE_URL;
     public static final String MOBILE_SUFFIX = "&mobile=2";
     public static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
     public static final String DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -58,6 +58,20 @@ public class HttpClient {
         cookieStore = new HashMap<>();
         client = new OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)
+                .callTimeout(150, TimeUnit.SECONDS)
+                .addInterceptor(chain -> {
+                    Response response = chain.proceed(chain.request());
+                    try {
+                        ResponsePolicy.checkStatus(response.code());
+                        if (chain.request().url().isHttps() && !response.request().url().isHttps()) {
+                            throw new IOException("拒绝将 HTTPS 请求重定向到不安全的 HTTP 地址");
+                        }
+                        return response;
+                    } catch (IOException error) {
+                        response.close();
+                        throw error;
+                    }
+                })
                 // 图片在后台先被规范化，移动网络上传时仍可能超过普通页面请求时长。
                 .readTimeout(120, TimeUnit.SECONDS)
                 .writeTimeout(120, TimeUnit.SECONDS)
@@ -66,6 +80,7 @@ public class HttpClient {
                 .cookieJar(new CookieJar() {
                     @Override
                     public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
+                        synchronized (cookieStore) {
                         String host = url.host();
                         List<Cookie> existing = cookieStore.get(host);
                         if (existing == null) {
@@ -75,7 +90,9 @@ public class HttpClient {
                         for (Cookie cookie : cookies) {
                             boolean found = false;
                             for (int i = 0; i < existing.size(); i++) {
-                                if (existing.get(i).name().equals(cookie.name())) {
+                                if (existing.get(i).name().equals(cookie.name())
+                                        && existing.get(i).domain().equals(cookie.domain())
+                                        && existing.get(i).path().equals(cookie.path())) {
                                     existing.set(i, cookie);
                                     found = true;
                                     break;
@@ -85,13 +102,22 @@ public class HttpClient {
                                 existing.add(cookie);
                             }
                         }
+                        }
                     }
 
                     @Override
                     public List<Cookie> loadForRequest(HttpUrl url) {
                         String host = url.host();
                         List<Cookie> cookies = cookieStore.get(host);
-                        return cookies != null ? cookies : Collections.emptyList();
+                        List<Cookie> matching = new ArrayList<>();
+                        synchronized (cookieStore) {
+                            for (List<Cookie> stored : cookieStore.values()) {
+                                for (Cookie cookie : stored) {
+                                    if (cookie.expiresAt() > System.currentTimeMillis() && cookie.matches(url)) matching.add(cookie);
+                                }
+                            }
+                        }
+                        return matching;
                     }
                 })
                 .build();
@@ -172,10 +198,28 @@ public class HttpClient {
         }
     }
 
+    public String getCookieStringForUrl(String url) {
+        HttpUrl parsed = HttpUrl.parse(url);
+        if (parsed == null) return "";
+        StringBuilder value = new StringBuilder();
+        synchronized (cookieStore) {
+            for (List<Cookie> cookies : cookieStore.values()) {
+                for (Cookie cookie : cookies) {
+                    if (cookie.expiresAt() > System.currentTimeMillis() && cookie.matches(parsed)) {
+                        if (value.length() > 0) value.append("; ");
+                        value.append(cookie.name()).append("=").append(cookie.value());
+                    }
+                }
+            }
+        }
+        return value.toString();
+    }
+
     public byte[] getBytes(String url) throws Exception {
         Request request = new Request.Builder()
                 .url(url)
                 .header("User-Agent", USER_AGENT)
+                .header("Referer", BASE_URL)
                 .get()
                 .build();
         try (Response response = client.newCall(request).execute()) {
@@ -188,13 +232,13 @@ public class HttpClient {
      */
     public String getDesktop(String url) throws Exception {
         // 去重：相同 URL 正在请求则等待已有结果，避免重复发送
-        CompletableFuture<String> existing = pendingGets.get(url);
+        CompletableFuture<String> existing = pendingGets.get("desktop:" + url);
         if (existing != null) {
             try { return existing.get(); }
             catch (Exception e) { /* 上次请求失败，继续发起新请求 */ }
         }
         CompletableFuture<String> future = new CompletableFuture<>();
-        CompletableFuture<String> prev = pendingGets.putIfAbsent(url, future);
+        CompletableFuture<String> prev = pendingGets.putIfAbsent("desktop:" + url, future);
         if (prev != null) {
             try { return prev.get(); }
             catch (Exception e) { /* 上同 */ }
@@ -219,7 +263,7 @@ public class HttpClient {
             future.completeExceptionally(e);
             throw e;
         } finally {
-            pendingGets.remove(url, future);
+            pendingGets.remove("desktop:" + url, future);
         }
     }
 
@@ -441,16 +485,7 @@ public class HttpClient {
      * 格式: "name1=value1; name2=value2"
      */
     public String getCookieString() {
-        String host = HttpUrl.parse(BASE_URL).host();
-        List<Cookie> cookies = cookieStore.get(host);
-        if (cookies == null || cookies.isEmpty()) return "";
-
-        StringBuilder sb = new StringBuilder();
-        for (Cookie c : cookies) {
-            if (sb.length() > 0) sb.append("; ");
-            sb.append(c.name()).append("=").append(c.value());
-        }
-        return sb.toString();
+        return getCookieStringForUrl(BASE_URL);
     }
 
     /**
@@ -463,7 +498,9 @@ public class HttpClient {
         List<Cookie> cookies = cookieStore.get(host);
         if (cookies != null) {
             for (Cookie c : cookies) {
-                if (c.name().endsWith("_auth") && !c.value().isEmpty()) {
+                if (c.name().endsWith("_auth") && !c.value().isEmpty()
+                        && c.expiresAt() > System.currentTimeMillis()
+                        && c.matches(HttpUrl.parse(BASE_URL))) {
                     return true;
                 }
             }

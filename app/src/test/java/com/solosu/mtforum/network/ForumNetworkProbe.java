@@ -15,7 +15,7 @@ import okhttp3.Response;
 public final class ForumNetworkProbe {
     public static void main(String[] args) throws Exception {
         StringBuffer report = new StringBuffer();
-        ForumDiagnostics.setSink(line -> { report.append(line).append('\n'); System.out.println(line); });
+        ForumDiagnostics.setSink(line -> { report.append(line + "\n"); System.out.println(line); });
         OkHttpClient client = ForumNetwork.clientBuilder().cookieJar(CookieJar.NO_COOKIES).build();
         String[] urls = {ForumParser.getHomeUrl(1), ForumParser.getThreadListUrl("2", 1), ForumParser.getThreadDetailUrl("172677")};
         String[] stages = {"home_list", "forum_list", "thread_detail"};

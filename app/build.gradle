@@ -45,6 +45,7 @@ android {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+    testImplementation "com.squareup.okhttp3:mockwebserver:${libs.versions.okhttp.get()}"
     implementation libs.androidx.core
     implementation libs.androidx.appcompat
     implementation libs.material

@@ -147,7 +147,7 @@ public final class BBCodeUtil {
      * - 新增表格/indent/user/media/sub/sup/spoiler 等标签
      */
     public static String convertBBCodeToHtml(String html) {
-        if (TextUtils.isEmpty(html)) {
+        if (html == null || html.isEmpty()) {
             return "";
         }
         String result = html;
@@ -179,7 +179,11 @@ public final class BBCodeUtil {
                 "<img src=\"https://bbs.binmt.cc/forum.php?mod=image&aid=$1&size=300x300&key=&nocache=1\">");
         result = P_ATTACH.matcher(result).replaceAll(
                 "<img src=\"https://bbs.binmt.cc/forum.php?mod=image&aid=$1&size=300x300&key=&nocache=1\">");
-        result = P_IMG.matcher(result).replaceAll("<img src=\"$1\">");
+        Matcher imgM = P_IMG.matcher(result);
+        StringBuffer sbImg = new StringBuffer();
+        while (imgM.find()) imgM.appendReplacement(sbImg, Matcher.quoteReplacement("<img src=\"" + escapeAttr(imgM.group(1).trim()) + "\">"));
+        imgM.appendTail(sbImg);
+        result = sbImg.toString();
         result = P_B.matcher(result).replaceAll("<strong>$1</strong>");
         result = P_I.matcher(result).replaceAll("<em>$1</em>");
         result = P_U.matcher(result).replaceAll("<u>$1</u>");
@@ -261,7 +265,17 @@ public final class BBCodeUtil {
         result = P_HR.matcher(result).replaceAll("<hr>");
 
         // 3) 清理未识别的孤立标签(在还原代码块之前执行,避免误删代码块内 [b] 等字面量)
-        result = P_TIDY_TAG.matcher(result).replaceAll("");
+        // BBCode cleanup applies to text only; brackets inside existing HTML image URLs are data.
+        Matcher htmlTags = Pattern.compile("(?s)<(?:[^>\"']|\"[^\"]*\"|'[^']*')+>").matcher(result);
+        StringBuilder cleaned = new StringBuilder();
+        int offset = 0;
+        while (htmlTags.find()) {
+            cleaned.append(P_TIDY_TAG.matcher(result.substring(offset, htmlTags.start())).replaceAll(""));
+            cleaned.append(htmlTags.group());
+            offset = htmlTags.end();
+        }
+        cleaned.append(P_TIDY_TAG.matcher(result.substring(offset)).replaceAll(""));
+        result = cleaned.toString();
 
         // 4) 还原代码块占位符
         StringBuffer sb3 = new StringBuffer();

@@ -14,7 +14,8 @@ public final class ForumNetwork {
         Request.Builder request = new Request.Builder().url(url)
                 .header("User-Agent", userAgent)
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8").get();
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                .tag(VerificationInterceptor.PageRequest.class, VerificationInterceptor.PAGE).get();
         if (referer != null) request.header("Referer", referer);
         return request.build();
     }

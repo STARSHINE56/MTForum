@@ -37,10 +37,8 @@ public final class ForumPageGuard {
                 || title.contains("登录") || title.contains("log in"))) {
             throw failure(stage, "login", "需要登录或登录已失效，请重新登录");
         }
-        if (!hasContent && (title.contains("just a moment") || title.contains("verify")
-                || title.contains("验证码") || title.contains("人机验证")
-                || !doc.select("#challenge-form, #cf-challenge-running, .g-recaptcha, .h-captcha").isEmpty())) {
-            throw failure(stage, "verification", "论坛要求访问验证，请在浏览器完成验证后重试");
+        if (VerificationPolicy.challenge(html, "text/html")) {
+            throw failure(stage, "verification", "论坛访问验证未完成，请稍后重试");
         }
         Element alert = doc.select("#messagetext, .comiis_tip, .alert_error").first();
         if (!hasContent && alert != null && !alert.text().trim().isEmpty()) {

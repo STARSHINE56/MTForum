@@ -655,10 +655,13 @@ public class ThreadDetailActivity extends AppCompatActivity {
         }
         String contentHtml = postDetail.getContentHtml();
         String[] strArrReplaceHiddenQuoteWithPlaceholder = {null, ""};
-        if (!TextUtils.isEmpty(contentHtml)) {
+        if (!TextUtils.isEmpty(contentHtml) || com.solosu.mtforum.network.PostImages.showGallery(contentHtml, postDetail.getImageUrls())) {
+            com.solosu.mtforum.network.ForumDiagnostics.images("activity_received", postDetail.getImageUrls());
+            com.solosu.mtforum.network.ForumDiagnostics.imageHtml("before_bbcode", contentHtml, imagePageUrl());
             String strConvertBBCodeToHtml = BBCodeUtil.convertBBCodeToHtml(contentHtml);
-            this.binding.tvContent.setVisibility(View.VISIBLE);
-            ArrayList arrayList = new ArrayList();
+            com.solosu.mtforum.network.ForumDiagnostics.imageHtml("after_bbcode", strConvertBBCodeToHtml, imagePageUrl());
+            this.binding.tvContent.setVisibility(TextUtils.isEmpty(contentHtml) ? View.GONE : View.VISIBLE);
+            ArrayList<String> arrayList = new ArrayList<>();
             String[] strArrSplitEditFooter = splitEditFooter(strConvertBBCodeToHtml);
             String strExtractAndSeparateImages = extractAndSeparateImages(strArrSplitEditFooter[0], arrayList);
             List<String> imageUrls = postDetail.getImageUrls();
@@ -696,7 +699,8 @@ public class ThreadDetailActivity extends AppCompatActivity {
                     : strArrReplaceHiddenQuoteWithPlaceholder[1];
             applyHiddenNoticeHighlight(this.binding.tvContent.getText(), hiddenNotice);
             setupClickableLinks(this.binding.tvContent);
-            if (!arrayList.isEmpty()) {
+            com.solosu.mtforum.network.ForumDiagnostics.images("activity_final", arrayList);
+            if (com.solosu.mtforum.network.PostImages.showGallery(contentHtml, arrayList)) {
                 this.binding.cardImageGallery.setVisibility(View.VISIBLE);
                 this.binding.hsvImageGallery.setVisibility(View.VISIBLE);
                 this.binding.llImageGallery.removeAllViews();
@@ -739,6 +743,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
             this.binding.tvContent.setTextSize(14.0f);
             this.binding.tvContent.setGravity(17);
         }
+        com.solosu.mtforum.network.ForumDiagnostics.parsed("gallery_visible", this.binding.cardImageGallery.getVisibility() == View.VISIBLE ? 1 : 0);
         boolean z3 = true;
         boolean hasHidden = postDetail.isHasHiddenContent();
         boolean hiddenUnlocked = hasHidden && this.httpClient.isLoggedIn()

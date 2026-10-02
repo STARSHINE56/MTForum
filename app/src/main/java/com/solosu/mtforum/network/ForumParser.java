@@ -160,16 +160,7 @@ public class ForumParser {
                 t.setHasImage(item.select(".mmlist_li_box .comiis_pyqlist_imgs, .mmlist_li_box .comiis_pyqlist_img").size() > 0);
                 
                 // 提取帖子封面图URL
-                Element imgEl = item.select(".mmlist_li_box .comiis_pyqlist_imgs img, .mmlist_li_box .comiis_pyqlist_img img, .mmlist_li_box img").first();
-                if (imgEl != null) {
-                    String imgSrc = firstNonEmptyAttr(imgEl, "comiis_loadimages", "data-original", "data-src", "data-file", "file", "src");
-                    if (!TextUtils.isEmpty(imgSrc)) {
-                        String fullUrl = resolveAttachmentUrl(imgSrc);
-                        if (isPostImageUrl(fullUrl)) {
-                            t.setThumbnailUrl(fullUrl);
-                        }
-                    }
-                }
+                populateThreadImages(item, t);
 
 // === 隐藏内容检测 ===
                 Element bodyText = item.select(".list_body .f_b").first();
@@ -317,16 +308,7 @@ public class ForumParser {
                 t.setHasImage(item.select(".mmlist_li_box .comiis_pyqlist_imgs, .mmlist_li_box .comiis_pyqlist_img").size() > 0);
                 
                 // 提取帖子封面图URL
-                Element imgEl = item.select(".mmlist_li_box .comiis_pyqlist_imgs img, .mmlist_li_box .comiis_pyqlist_img img, .mmlist_li_box img").first();
-                if (imgEl != null) {
-                    String imgSrc = firstNonEmptyAttr(imgEl, "comiis_loadimages", "data-original", "data-src", "data-file", "file", "src");
-                    if (!TextUtils.isEmpty(imgSrc)) {
-                        String fullUrl = resolveAttachmentUrl(imgSrc);
-                        if (isPostImageUrl(fullUrl)) {
-                            t.setThumbnailUrl(fullUrl);
-                        }
-                    }
-                }
+                populateThreadImages(item, t);
 
                 populateThreadImages(item, t);
                 threads.add(t);
@@ -454,16 +436,7 @@ public class ForumParser {
                 t.setHasImage(item.select(".mmlist_li_box .comiis_pyqlist_imgs, .mmlist_li_box .comiis_pyqlist_img").size() > 0);
                 
                 // 提取帖子封面图URL
-                Element imgEl = item.select(".mmlist_li_box .comiis_pyqlist_imgs img, .mmlist_li_box .comiis_pyqlist_img img, .mmlist_li_box img").first();
-                if (imgEl != null) {
-                    String imgSrc = firstNonEmptyAttr(imgEl, "comiis_loadimages", "data-original", "data-src", "data-file", "file", "src");
-                    if (!TextUtils.isEmpty(imgSrc)) {
-                        String fullUrl = resolveAttachmentUrl(imgSrc);
-                        if (isPostImageUrl(fullUrl)) {
-                            t.setThumbnailUrl(fullUrl);
-                        }
-                    }
-                }
+                populateThreadImages(item, t);
 
                 // 隐藏内容检测
                 Element bodyText = item.select(".list_body .f_b").first();
@@ -1833,16 +1806,7 @@ public class ForumParser {
             // 虽然 HTML 中有图片，但 imageUrls 始终为空。
             Element messagesDiv = opMsg.select("div.comiis_messages").first();
             if (messagesDiv == null) messagesDiv = opMsg;
-            List<String> attachImageUrls = new ArrayList<>();
-            for (Element img : messagesDiv.select("img")) {
-                String realSrc = firstNonEmptyAttr(img,
-                        "comiis_loadimages", "file", "data-original", "data-src",
-                        "data-file", "data-lazy-src", "src");
-                String fullUrl = resolveAttachmentUrl(realSrc);
-                if (isPostImageUrl(fullUrl) && !attachImageUrls.contains(fullUrl)) {
-                    attachImageUrls.add(fullUrl);
-                }
-            }
+            List<String> attachImageUrls = PostImages.collect(messagesDiv, BASE_DOMAIN);
             detail.setImageUrls(attachImageUrls);
 
             // 隐藏内容检测
@@ -2561,22 +2525,6 @@ detail.setTotalPages(maxPage);
         return BASE_DOMAIN + url;
     }
 
-    private static boolean isPostImageUrl(String url) {
-        if (TextUtils.isEmpty(url)) return false;
-        String lower = url.toLowerCase();
-        return !lower.contains("none.gif")
-                && !lower.contains("none.png")
-                && !lower.contains("loading")
-                && !lower.contains("smiley")
-                && !lower.contains("face")
-                && !lower.contains("icon")
-                && !lower.contains("stamp")
-                && !lower.contains("magic")
-                && !lower.contains("emoticon")
-                && !lower.contains("/static/image/")
-                && !lower.contains("avatar.php");
-    }
-
     /**
      * 补全附件图片URL（处理相对路径、懒加载路径等）
      * MT论坛移动版使用 comiis_loadimages 属性存储真实URL
@@ -2589,34 +2537,9 @@ detail.setTotalPages(maxPage);
      * 提取列表卡片中的多张帖子图片，供所有帖子列表页面统一使用。
      */
     private static void populateThreadImages(Element item, Thread thread) {
-        List<String> imageUrls = new ArrayList<>();
-        Elements imageElements = item.select(
-                ".comiis_pyqlist_imgs img, .comiis_pyqlist_img img");
-        for (Element image : imageElements) {
-            String src = firstNonEmptyAttr(image,
-                    "comiis_loadimages", "data-original", "data-src",
-                    "data-file", "file", "data-lazy-src", "src");
-            String fullUrl = resolveAttachmentUrl(src);
-            if (isPostImageUrl(fullUrl) && !imageUrls.contains(fullUrl)) {
-                imageUrls.add(fullUrl);
-                if (imageUrls.size() >= 4) break;
-            }
-        }
-
-        // 某些空间帖子页没有图片容器，使用卡片正文区域中的图片作为兜底。
-        if (imageUrls.isEmpty()) {
-            Elements fallbackImages = item.select(".mmlist_li_box img");
-            for (Element image : fallbackImages) {
-                String src = firstNonEmptyAttr(image,
-                        "comiis_loadimages", "data-original", "data-src",
-                        "data-file", "file", "data-lazy-src", "src");
-                String fullUrl = resolveAttachmentUrl(src);
-                if (isPostImageUrl(fullUrl) && !imageUrls.contains(fullUrl)) {
-                    imageUrls.add(fullUrl);
-                    if (imageUrls.size() >= 4) break;
-                }
-            }
-        }
+        Element body = item.selectFirst(".mmlist_li_box, .comiis_pyqlist_imgs, .comiis_pyqlist_img, .list_body");
+        List<String> imageUrls = body == null ? new ArrayList<>() : PostImages.collect(body, BASE_DOMAIN);
+        if (imageUrls.size() > 4) imageUrls = new ArrayList<>(imageUrls.subList(0, 4));
 
         thread.setImageUrls(imageUrls);
         if (!imageUrls.isEmpty()) {

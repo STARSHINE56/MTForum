@@ -13,12 +13,20 @@ public final class VerificationCoordinator {
     private CompletableFuture<Boolean> active;
     private String activeKey;
     private long failedAt = Long.MIN_VALUE;
+    private final boolean reuseSuccess;
+    private long passedAt = Long.MIN_VALUE;
+    private String passedKey;
 
     public VerificationCoordinator() { this(System::currentTimeMillis, 95000, 60000); }
+    public VerificationCoordinator(boolean reuseSuccess) { this(System::currentTimeMillis, 95000, 60000, reuseSuccess); }
     VerificationCoordinator(LongSupplier clock, long timeoutMillis, long cooldownMillis) {
+        this(clock, timeoutMillis, cooldownMillis, false);
+    }
+    VerificationCoordinator(LongSupplier clock, long timeoutMillis, long cooldownMillis, boolean reuseSuccess) {
         this.clock = clock;
         this.timeoutMillis = timeoutMillis;
         this.cooldownMillis = cooldownMillis;
+        this.reuseSuccess = reuseSuccess;
     }
     public boolean verify(Flow flow) { return verify("default", flow); }
     public boolean verify(String key, Flow flow) {
@@ -43,6 +51,7 @@ public final class VerificationCoordinator {
         boolean sameContext;
         boolean owner = false;
         synchronized (this) {
+            if (reuseSuccess && key.equals(passedKey) && clock.getAsLong() - passedAt < cooldownMillis) return new Result(true, true);
             if (active != null) result = active;
             else {
                 if (failedAt != Long.MIN_VALUE && clock.getAsLong() - failedAt < cooldownMillis) return new Result(false, true);
@@ -64,6 +73,7 @@ public final class VerificationCoordinator {
             synchronized (this) {
                 if (active == result && result.isDone()) {
                     if (!Boolean.TRUE.equals(result.getNow(false))) failedAt = clock.getAsLong();
+                    else { passedAt = clock.getAsLong(); passedKey = activeKey; }
                     active = null;
                 }
             }

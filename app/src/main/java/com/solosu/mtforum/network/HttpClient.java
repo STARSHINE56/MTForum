@@ -42,6 +42,8 @@ public class HttpClient {
 
     private static volatile HttpClient instance;
     private OkHttpClient client;
+    private OkHttpClient imageClient;
+    private volatile String imageSession = java.util.UUID.randomUUID().toString();
     private Map<String, List<Cookie>> cookieStore;
     private static final String PREF_NAME = "sqapp_cookies";
     private static final String KEY_COOKIES = "cookies_json";
@@ -106,7 +108,13 @@ public class HttpClient {
                 })
                 .addInterceptor(new VerificationInterceptor(request -> VerificationGate.getInstance().verify(request)))
                 .build();
+        OkHttpClient.Builder images = client.newBuilder().followRedirects(false).followSslRedirects(false);
+        images.interceptors().clear();
+        imageClient = images.addInterceptor(new ForumImageInterceptor(request -> VerificationGate.getInstance().verify(request))).build();
     }
+
+    public String imageSessionKey() { return imageSession; }
+    public okhttp3.Call newImageCall(Request request) { return imageClient.newCall(request); }
 
     public static HttpClient getInstance() {
         if (instance == null) {
@@ -630,6 +638,10 @@ public class HttpClient {
     }
 
     private void restoreCookieStoreInternal(Context context, boolean explicitAccountSwitch) {
+        if (explicitAccountSwitch) {
+            imageSession = java.util.UUID.randomUUID().toString();
+            imageClient.dispatcher().cancelAll();
+        }
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
             String json = prefs.getString(KEY_COOKIES, null);
@@ -712,6 +724,8 @@ public class HttpClient {
     }
 
     public void clearCookies() {
+        imageSession = java.util.UUID.randomUUID().toString();
+        imageClient.dispatcher().cancelAll();
         VerificationGate.getInstance().cancelForSessionChange();
         CookieManager manager = CookieManager.getInstance();
         // Delete only cookies visible to this forum, synchronously before account replacement.

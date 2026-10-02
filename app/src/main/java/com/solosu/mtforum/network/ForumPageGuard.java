@@ -78,6 +78,7 @@ public final class ForumPageGuard {
         if (resolved.host().equals("bbs.binmt.cc") || resolved.host().equals("cdn.binmt.cc")) {
             resolved = resolved.newBuilder().scheme("https").build();
         }
-        return resolved.toString();
+        if (!resolved.username().isEmpty() || !resolved.password().isEmpty()) return null;
+        return resolved.newBuilder().fragment(null).build().toString();
     }
 }

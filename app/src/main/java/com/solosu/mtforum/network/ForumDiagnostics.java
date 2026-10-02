@@ -74,7 +74,7 @@ public final class ForumDiagnostics {
         MediaType type = value == null ? null : MediaType.parse(value);
         if (type == null) return "missing_or_invalid";
         String mime = type.type() + "/" + type.subtype();
-        if (!mime.matches("text/(html|plain)|application/(xhtml\\+xml|json|xml)|image/(png|jpeg|gif|webp)")) return "other";
+        if (!mime.matches("text/(html|plain)|application/(xhtml\\+xml|json|xml)|image/[a-z0-9.+-]{1,40}")) return "other";
         return mime;
     }
     public static String safeUrl(String value) {

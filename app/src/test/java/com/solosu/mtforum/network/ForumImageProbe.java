@@ -9,7 +9,7 @@ import org.jsoup.Jsoup;
 /** Anonymous evidence only. Does not solve verification or borrow a user's phone cookies. */
 public final class ForumImageProbe {
     public static void main(String[] args) throws Exception {
-        String page = ForumParser.getThreadDetailUrl("172677");
+        String page = ForumParser.getThreadDetailUrl("173805");
         StringBuilder report = new StringBuilder("Anonymous real thread/image probe. No personal cookies.\n");
         OkHttpClient client = ForumNetwork.clientBuilder().callTimeout(30, java.util.concurrent.TimeUnit.SECONDS).cookieJar(CookieJar.NO_COOKIES).build();
         String html = null;
@@ -25,11 +25,10 @@ public final class ForumImageProbe {
             report.append("thread transport=").append(ForumDiagnostics.transportReason(error)).append("; body image requests unverified.\n");
         }
         if (html != null) {
-            org.jsoup.nodes.Document doc = Jsoup.parse(html, page);
-            org.jsoup.nodes.Element body = doc.selectFirst(".comiis_postli .comiis_messages, td.t_f");
-            if (body == null) report.append("thread body_selector_missing; image extraction unverified.\n");
-            else {
-                List<String> images = PostImages.collect(body, page);
+            ForumDiagnostics.setSink(line -> report.append(line).append('\n'));
+            ForumDiagnostics.html("real_173805", html);
+            try {
+                List<String> images = ForumParser.parseThreadDetail(html).getImageUrls();
                 report.append("body_images=").append(images.size()).append('\n');
                 OkHttpClient.Builder builder = client.newBuilder().followRedirects(false);
                 builder.interceptors().clear();
@@ -40,6 +39,8 @@ public final class ForumImageProbe {
                         report.append("image index=").append(i).append(" status=").append(response.code()).append(" contentType=").append(ForumDiagnostics.safeContentType(response.header("Content-Type"))).append(" size=").append(response.body().contentLength()).append(" signature=").append(signature(sample)).append('\n');
                     } catch(Exception error) {report.append("image index=").append(i).append(" fetch_failed; see safe phase metadata; Glide decoding unverified.\n");}
                 }
+            } catch (ForumPageGuard.PageFailure error) {
+                report.append("thread page_type=").append(error.reason).append("; actual image extraction unverified.\n");
             }
         }
         File destination=new File(args[0]);File parent=destination.getParentFile();if(parent!=null)parent.mkdirs();

@@ -82,11 +82,36 @@ public final class PostImages {
     }
     public static List<String> collect(Element root, String pageUrl) {
         List<String> urls = new ArrayList<>();
+        if (root == null) return urls;
         for (Element element : root.select("img")) {
             Image image = read(element, pageUrl);
             if (image.kind == Kind.BODY && !urls.contains(image.url)) urls.add(image.url);
         }
+        // Only explicit image attachment links; never treat arbitrary downloadable files as images.
+        for (Element link : root.select("a[href]")) {
+            String url = ForumPageGuard.imageUrl(link.attr("href"), pageUrl);
+            HttpUrl parsed = url == null ? null : HttpUrl.parse(url);
+            if (parsed != null && parsed.encodedPath().matches("(?i).*\\.(png|jpg|jpeg|gif|webp)$")
+                    && (link.closest("ignore_js_op, .attachimg, .attm, .comiis_attach, [id^=aimg_]" ) != null)
+                    && !urls.contains(url)) urls.add(url);
+        }
         return urls;
+    }
+    /** Body plus explicitly associated attachment areas, bounded to this post (not replies). */
+    public static List<String> collectPost(Element body, Element post, String pageUrl) {
+        List<String> urls = collect(body, pageUrl);
+        if (post != null) {
+            for (Element region : post.select("ignore_js_op, .attachimg, .attm, .comiis_attach, .comiis_postattach, [id^=postattach_], [id^=aimg_]")) {
+                // A nested reply/post belongs to a different author.
+                Element owner = region.closest(".comiis_postli, [id^=post_], article");
+                if (owner != null && owner != post && post.select(".comiis_postli, [id^=post_], article").contains(owner)) continue;
+                for (String url : collect(region, pageUrl)) if (!urls.contains(url)) urls.add(url);
+            }
+        }
+        return urls;
+    }
+    public static boolean showGallery(String html, List<String> urls) {
+        return urls != null && !urls.isEmpty();
     }
     public static String separate(String html, String pageUrl, List<String> urls) {
         if (html == null || html.isEmpty()) return "";
@@ -106,7 +131,7 @@ public final class PostImages {
             else {
                 Element hint = new Element("span");
                 hint.text("[图片地址未解析，请查看原帖]");
-                element.replaceWith(hint);
+                element.after(hint); // Preserve unresolved original attributes for inline fallback/diagnosis.
                 ForumDiagnostics.failure("image_parse", "missing_or_unsafe_source");
             }
         }

@@ -1636,6 +1636,7 @@ public class ForumParser {
 
     private static PostDetail parseThreadDetailInternal(String html) {
         PostDetail detail = new PostDetail();
+        ForumDiagnostics.html("thread_detail_raw", html);
         Document doc = ForumPageGuard.parse(html, "thread_detail");
         if (doc.select(".comiis_postli, .comiis_message, td.t_f, div.postbody, article").isEmpty()) {
             throw ForumPageGuard.failure("thread_detail", "selector_mismatch", "帖子详情解析失败，页面格式可能已变化，请重试");
@@ -1703,7 +1704,11 @@ public class ForumParser {
                 }
             }
             detail.setReplies(new ArrayList<ReplyItem>());
-            detail.setImageUrls(new ArrayList<String>());
+            Element fallbackBody = doc.selectFirst("div.comiis_message, td.t_f, div.message, div.postbody, article");
+            Element fallbackPost = fallbackBody == null ? null : fallbackBody.closest("[id^=post_], article, .comiis_postli");
+            if (fallbackPost == null && fallbackBody != null) fallbackPost = fallbackBody.parent();
+            detail.setImageUrls(PostImages.collectPost(fallbackBody, fallbackPost, BASE_DOMAIN));
+            ForumDiagnostics.images("parser_fallback", detail.getImageUrls());
             detail.setCurrentPage(1);
             detail.setTotalPages(1);
             ForumDiagnostics.parsed("thread_detail", 1);
@@ -1762,7 +1767,7 @@ public class ForumParser {
         }
 
         // === 6. 帖子正文 + 附件图片 ===
-        Element opMsg = opPostli.select("div.comiis_message").first();
+        Element opMsg = opPostli.select("div.comiis_message, td.t_f, div.postbody, div.message").first();
         if (opMsg != null) {
             // ★ 尝试多种选择器提取正文内容（优先精确选择器，兜底取整个消息区）
             Element contentDiv = opMsg.select("div.comiis_a.comiis_message_table.cl").first();
@@ -1804,9 +1809,7 @@ public class ForumParser {
             // 无论正文使用哪一个选择器，都必须提取正文中的懒加载图片。
             // 旧代码把这段逻辑放在 contentDiv == null 分支中，导致大多数正常帖子
             // 虽然 HTML 中有图片，但 imageUrls 始终为空。
-            Element messagesDiv = opMsg.select("div.comiis_messages").first();
-            if (messagesDiv == null) messagesDiv = opMsg;
-            List<String> attachImageUrls = PostImages.collect(messagesDiv, BASE_DOMAIN);
+            List<String> attachImageUrls = PostImages.collectPost(opMsg, opPostli, BASE_DOMAIN);
             detail.setImageUrls(attachImageUrls);
 
             // 隐藏内容检测
@@ -1874,6 +1877,10 @@ public class ForumParser {
                 detail.setLikeUserNames(likeNames);
             }
         }
+
+        // Attachment-only posts must work even when the message container is absent.
+        if (opMsg == null) detail.setImageUrls(PostImages.collectPost(null, opPostli, BASE_DOMAIN));
+        ForumDiagnostics.images("parser_normal", detail.getImageUrls());
 
         // 收藏数(帖子头部操作栏 #comiis_favorite_a 内,与 opMsg 同级在 doc 下,
         // 不能用 opMsg.selectFirst 否则永远 null)
@@ -2539,6 +2546,7 @@ detail.setTotalPages(maxPage);
     private static void populateThreadImages(Element item, Thread thread) {
         Element body = item.selectFirst(".mmlist_li_box, .comiis_pyqlist_imgs, .comiis_pyqlist_img, .list_body");
         List<String> imageUrls = body == null ? new ArrayList<>() : PostImages.collect(body, BASE_DOMAIN);
+        if ("173805".equals(thread.getTid())) ForumDiagnostics.images("list_173805", imageUrls);
         if (imageUrls.size() > 4) imageUrls = new ArrayList<>(imageUrls.subList(0, 4));
 
         thread.setImageUrls(imageUrls);

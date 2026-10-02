@@ -43,6 +43,7 @@ public final class ForumDiagnostics {
     }
     public static void html(String stage, String html) {
         Document doc = Jsoup.parse(html == null ? "" : html);
+        imageHtml(stage + "_images", html, "https://bbs.binmt.cc/");
         String title = doc.title().toLowerCase(java.util.Locale.ROOT);
         emit("stage=" + stage + " chars=" + (html == null ? 0 : html.length())
                 + " li=" + doc.select("li.forumlist_li").size()
@@ -60,6 +61,18 @@ public final class ForumDiagnostics {
                 + " titleVerify=" + (title.contains("just a moment") || title.contains("verify") || title.contains("验证码") || title.contains("人机验证"))
                 + " titleError=" + (title.matches(".*\\b[45][0-9]{2}\\b.*") || title.contains("access denied") || title.contains("bad gateway") || title.contains("service unavailable"))
                 + " explicitEmpty=" + ForumPageGuard.explicitEmpty(doc));
+    }
+    public static void images(String stage, java.util.List<String> urls) {
+        emit("stage=" + stage + " images=" + (urls == null ? 0 : urls.size()));
+        if (urls != null) for (int i = 0; i < Math.min(10, urls.size()); i++)
+            emit("stage=" + stage + " imageIndex=" + i + " url=" + safeUrl(urls.get(i)));
+    }
+    public static void imageHtml(String stage, String html, String pageUrl) {
+        Document doc = Jsoup.parseBodyFragment(html == null ? "" : html, pageUrl);
+        emit("stage=" + stage + " img=" + doc.select("img").size()
+                + " attachments=" + doc.select("a[href*=attachment],ignore_js_op,.attachimg,[id^=aimg_]").size()
+                + " lazy=" + doc.select("[comiis_loadimages],[file],[zoomfile],[data-src],[data-original],[data-lazy-src],[srcset],[data-srcset]").size());
+        images(stage, PostImages.collect(doc, pageUrl));
     }
     public static void parsed(String stage, int count) { emit("stage=" + stage + " result=success count=" + count); }
     static <T> T parse(String stage, java.util.function.Supplier<T> parser) {

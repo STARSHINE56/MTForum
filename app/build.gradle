@@ -74,3 +74,12 @@ tasks.register('forumNetworkProbe', JavaExec) {
     mainClass = 'com.solosu.mtforum.network.ForumNetworkProbe'
     args layout.buildDirectory.file('reports/forum-network-probe.txt').get().asFile.absolutePath
 }
+
+// Keep real image extraction/HTTP evidence separate from the deterministic regression tests.
+tasks.register('forumImageProbe', JavaExec) {
+    dependsOn 'compileDebugUnitTestJavaWithJavac'
+    classpath = files(android.bootClasspath) + files('build/intermediates/javac/debug/compileDebugJavaWithJavac/classes',
+            'build/intermediates/javac/debugUnitTest/compileDebugUnitTestJavaWithJavac/classes') + configurations.debugUnitTestRuntimeClasspath
+    mainClass = 'com.solosu.mtforum.network.ForumImageProbe'
+    args layout.buildDirectory.file('reports/forum-image-probe.txt').get().asFile.absolutePath
+}

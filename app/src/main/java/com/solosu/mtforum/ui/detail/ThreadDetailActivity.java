@@ -706,6 +706,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
                 for (final String str2 : (java.util.List<String>) arrayList) {
                     ImageView imageView = new ImageView(this);
                     imageView.setLayoutParams(new LinearLayout.LayoutParams(-2, iDpToPx));
+                    imageView.setMinimumWidth(dpToPx(120));
                     imageView.setAdjustViewBounds(z2);
                     imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
                     ((LinearLayout.LayoutParams) imageView.getLayoutParams()).setMargins(iDpToPx2, 0, iDpToPx2, 0);
@@ -715,7 +716,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
                             ThreadDetailActivity.this.lambda$bindData$26(str2, view);
                         }
                     });
-                    Glide.with((FragmentActivity) this).load(com.solosu.mtforum.network.ForumImages.request(str2, HttpClient.BASE_URL + "thread-" + tid + "-1-1.html")).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error((Drawable) new ColorDrawable(getColor(R.color.divider))).into(imageView);
+                    Glide.with((FragmentActivity) this).load(com.solosu.mtforum.network.ForumImages.request(str2, imagePageUrl())).listener(com.solosu.mtforum.network.ForumImages.listener()).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error(R.drawable.ic_image_error).into(imageView);
                     this.binding.llImageGallery.addView(imageView);
                     iDpToPx = iDpToPx;
                     z2 = true;
@@ -1907,7 +1908,7 @@ public class ThreadDetailActivity extends AppCompatActivity {
                     ThreadDetailActivity.this.lambda$renderHiddenContent$39(imgUrl, view);
                 }
             });
-            Glide.with((FragmentActivity) this).load(com.solosu.mtforum.network.ForumImages.request(imgUrl, HttpClient.BASE_URL + "thread-" + tid + "-1-1.html")).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error((Drawable) new ColorDrawable(getColor(R.color.divider))).into(imageView);
+            Glide.with((FragmentActivity) this).load(com.solosu.mtforum.network.ForumImages.request(imgUrl, imagePageUrl())).listener(com.solosu.mtforum.network.ForumImages.listener()).placeholder(new ColorDrawable(getColor(R.color.background_secondary))).error(R.drawable.ic_image_error).into(imageView);
             this.binding.llImageGallery.addView(imageView);
         }
         this.binding.cardImageGallery.setVisibility(View.VISIBLE);
@@ -2274,56 +2275,11 @@ private void viewHiddenContent() {
     }
 
     private String extractAndSeparateImages(String html, List<String> imageUrls) {
-        String fullUrl;
-        if (TextUtils.isEmpty(html)) {
-            return "";
-        }
-        try {
-            Document doc = Jsoup.parse(html);
-            doc.select("script").remove();
-            doc.select("style").remove();
-            doc.select("ignore_js_op").remove();
-            doc.select("*:matchesOwn(^border\\s*=\\s*[\"']?\\d)").remove();
-            Elements imgs = doc.select("img");
-            for (Element img : imgs) {
-                String realUrl = null;
-                if (img.hasAttr("file") && !TextUtils.isEmpty(img.attr("file"))) {
-                    realUrl = img.attr("file");
-                } else if (img.hasAttr("comiis_loadimages") && !TextUtils.isEmpty(img.attr("comiis_loadimages"))) {
-                    realUrl = img.attr("comiis_loadimages");
-                } else if (img.hasAttr("data-original") && !TextUtils.isEmpty(img.attr("data-original"))) {
-                    realUrl = img.attr("data-original");
-                } else if (img.hasAttr("data-src") && !TextUtils.isEmpty(img.attr("data-src"))) {
-                    realUrl = img.attr("data-src");
-                } else if (img.hasAttr("data-file") && !TextUtils.isEmpty(img.attr("data-file"))) {
-                    realUrl = img.attr("data-file");
-                } else if (img.hasAttr("src") && !TextUtils.isEmpty(img.attr("src"))) {
-                    realUrl = img.attr("src");
-                }
-                if (realUrl != null && !realUrl.isEmpty() && (fullUrl = normalizeImageUrl(realUrl)) != null && !fullUrl.contains("smiley") && !fullUrl.contains("emoticon") && !fullUrl.contains("face") && !fullUrl.contains("/static/image/smiley") && !fullUrl.contains("stamp") && !fullUrl.contains("magic") && !fullUrl.contains("mini") && !fullUrl.contains("icon") && !fullUrl.contains("none.gif") && !fullUrl.contains("common_") && !imageUrls.contains(fullUrl)) {
-                    imageUrls.add(fullUrl);
-                }
-            }
-            doc.select("img").remove();
-            String cleanedText = doc.body().html();
-            return cleanedText.replaceAll("(?i)replyreload\\s*\\+?\\s*=\\s*'[^']*'", "").replaceAll("(?i)replyreload\\s*\\+?\\s*=\\s*\"[^\"]*\"", "").replaceAll("(?i)replyreload\\s*\\+?\\s*=\\s*[^;\\s<]+", "").replaceAll("\\s*border\\s*=\\s*[\"'][^\"']*[\"']", "").replaceAll("\\s*alt\\s*=\\s*[\"'][^\"']*[\"']", "").replaceAll("\\s*title\\s*=\\s*[\"'][^\"']*[\"']", "").replaceAll("<[^>]*>\\s*<", "<");
-        } catch (Exception e) {
-            return fallbackExtractImages(html, imageUrls);
-        }
+        return com.solosu.mtforum.network.PostImages.separate(html, imagePageUrl(), imageUrls);
     }
 
-    private String fallbackExtractImages(String html, List<String> imageUrls) {
-        String cleaned = html.replaceAll("(?i)<script[^>]*>.*?</script>", "").replaceAll("(?i)<style[^>]*>.*?</style>", "");
-        Pattern imgPattern = Pattern.compile("<img[^>]*(?:file|comiis_loadimages|data-original|data-src|data-file|src)=[\"']([^\"']+)[\"']", 2);
-        Matcher matcher = imgPattern.matcher(cleaned);
-        while (matcher.find()) {
-            String url = matcher.group(1);
-            String fullUrl = normalizeImageUrl(url);
-            if (fullUrl != null && !fullUrl.contains("smiley") && !fullUrl.contains("face") && !fullUrl.contains("emoticon") && !fullUrl.contains("icon") && !fullUrl.contains("none.gif") && !fullUrl.contains("common_") && !imageUrls.contains(fullUrl)) {
-                imageUrls.add(fullUrl);
-            }
-        }
-        return cleaned.replaceAll("(?i)<img[^>]*>", "");
+    String imagePageUrl() {
+        return getReplyOrderUrl();
     }
 
     private static String normalizeImageUrl(String url) {
@@ -2684,6 +2640,7 @@ private void viewHiddenContent() {
             return;
         }
         Intent intent = new Intent(this, (Class<?>) ImagePreviewActivity.class);
+        intent.putExtra("image_referer", imagePageUrl());
         // 多图: 传整个图组+当前图位置,可左右翻页
         java.util.List<String> list = new ArrayList<>(this.currentImageList);
         if (list.isEmpty() || !list.contains(url)) {
@@ -3992,7 +3949,8 @@ private void viewHiddenContent() {
             final com.solosu.mtforum.util.UrlDrawable placeholder =
                     new com.solosu.mtforum.util.UrlDrawable(tv, dpToPx(120));
             com.bumptech.glide.Glide.with(this)
-                    .load(com.solosu.mtforum.network.ForumImages.request(imgUrl, HttpClient.BASE_URL + "thread-" + tid + "-1-1.html"))
+                    .load(com.solosu.mtforum.network.ForumImages.request(imgUrl, imagePageUrl()))
+                    .listener(com.solosu.mtforum.network.ForumImages.listener())
                     .into(new com.bumptech.glide.request.target.CustomTarget<Drawable>() {
                         @Override
                         public void onResourceReady(Drawable resource,

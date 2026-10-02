@@ -38,6 +38,9 @@ jobs:
       - name: Anonymous forum network diagnostics
         if: ${{ !cancelled() }}
         run: gradle :app:forumNetworkProbe --stacktrace
+      - name: Anonymous thread image diagnostics
+        if: ${{ !cancelled() }}
+        run: gradle :app:forumImageProbe --stacktrace
       - name: Upload reports and APK
         if: always()
         uses: actions/upload-artifact@v4
@@ -48,3 +51,4 @@ jobs:
             app/build/reports/tests/testDebugUnitTest/**
             app/build/reports/lint-results-debug.*
             app/build/reports/forum-network-probe.txt
+            app/build/reports/forum-image-probe.txt

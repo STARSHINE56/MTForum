@@ -44,6 +44,8 @@ android {
 }
 
 dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation "com.squareup.okhttp3:mockwebserver:${libs.versions.okhttp.get()}"
     implementation libs.androidx.core
     implementation libs.androidx.appcompat
     implementation libs.material
@@ -61,4 +63,23 @@ dependencies {
     implementation libs.androidx.viewpager2
     implementation libs.webkit
     implementation libs.androidx.drawerlayout
+}
+
+// Anonymous live diagnostics use the same GET headers and OkHttp settings as the app.
+// This is not a unit test: remote access failures are recorded rather than hidden.
+tasks.register('forumNetworkProbe', JavaExec) {
+    dependsOn 'compileDebugUnitTestJavaWithJavac'
+    classpath = files(android.bootClasspath) + files('build/intermediates/javac/debug/compileDebugJavaWithJavac/classes',
+            'build/intermediates/javac/debugUnitTest/compileDebugUnitTestJavaWithJavac/classes') + configurations.debugUnitTestRuntimeClasspath
+    mainClass = 'com.solosu.mtforum.network.ForumNetworkProbe'
+    args layout.buildDirectory.file('reports/forum-network-probe.txt').get().asFile.absolutePath
+}
+
+// Keep real image extraction/HTTP evidence separate from the deterministic regression tests.
+tasks.register('forumImageProbe', JavaExec) {
+    dependsOn 'compileDebugUnitTestJavaWithJavac'
+    classpath = files(android.bootClasspath) + files('build/intermediates/javac/debug/compileDebugJavaWithJavac/classes',
+            'build/intermediates/javac/debugUnitTest/compileDebugUnitTestJavaWithJavac/classes') + configurations.debugUnitTestRuntimeClasspath
+    mainClass = 'com.solosu.mtforum.network.ForumImageProbe'
+    args layout.buildDirectory.file('reports/forum-image-probe.txt').get().asFile.absolutePath
 }

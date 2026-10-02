@@ -29,6 +29,7 @@ public class UrlDrawable extends ColorDrawable {
         this.real = drawable;
         this.target = targetView;
         if (drawable != null) {
+            if (!drawable.getBounds().isEmpty()) setBounds(drawable.getBounds());
             drawable.setBounds(getBounds());
         }
         if (targetView instanceof android.widget.TextView) {

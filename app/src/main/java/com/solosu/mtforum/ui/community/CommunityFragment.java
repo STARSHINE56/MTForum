@@ -146,6 +146,7 @@ public class CommunityFragment extends Fragment {
                 String html = httpClient.get(ForumParser.getForumlistMobileUrl());
                 ForumParser.CommunityPageData data = ForumParser.parseCommunityPage(html);
 
+                if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     if (binding == null) return;
 
@@ -208,9 +209,14 @@ public class CommunityFragment extends Fragment {
                 });
             } catch (Exception e) {
                 e.printStackTrace();
+                if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     if (binding != null) {
-                        binding.tvSignInStatus.setText(R.string.network_error);
+                        binding.tvSignInStatus.setText(com.solosu.mtforum.network.ResponsePolicy.errorMessage(e));
+                        com.google.android.material.snackbar.Snackbar.make(binding.getRoot(),
+                                com.solosu.mtforum.network.ResponsePolicy.errorMessage(e),
+                                com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE)
+                                .setAction("重试", view -> loadCommunityData()).show();
                     }
                 });
             }

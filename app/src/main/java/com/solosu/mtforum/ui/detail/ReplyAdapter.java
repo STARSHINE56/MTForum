@@ -274,7 +274,7 @@ public class ReplyAdapter extends RecyclerView.Adapter<ReplyAdapter.ViewHolder> 
                 tvContent.setVisibility(View.VISIBLE);
                 // 提取图片URL，移除img标签后渲染文本（也保留内联表情）
                 List<String> replyImageUrls = new ArrayList<>();
-                String cleanHtml = extractImagesFromHtml(htmlContent, replyImageUrls);
+                String cleanHtml = extractImagesFromHtml(htmlContent, imagePageUrl(itemView.getContext()), replyImageUrls);
                 // ★ 修复2：用 ImageGetter 渲染剩下的内联图片
                 tvContent.setText(Html.fromHtml(cleanHtml, Html.FROM_HTML_MODE_COMPACT,
                         createInlineImageGetter(tvContent), BBCodeUtil.createTagHandler(itemView.getContext())));
@@ -302,9 +302,10 @@ public class ReplyAdapter extends RecyclerView.Adapter<ReplyAdapter.ViewHolder> 
                         imageView.setFocusable(true);
                         setImageClick(itemView.getContext(), imageView, imgUrl);
                         Glide.with(itemView.getContext())
-                                .load(imgUrl)
+                                .load(com.solosu.mtforum.network.ForumImages.request(imgUrl, imagePageUrl(itemView.getContext())))
+                                .listener(com.solosu.mtforum.network.ForumImages.listener())
                                 .placeholder(new ColorDrawable(itemView.getContext().getColor(R.color.background_secondary)))
-                                .error(new ColorDrawable(itemView.getContext().getColor(R.color.divider)))
+                                .error(R.drawable.ic_image_error)
                                 .into(imageView);
                         llReplyImages.addView(imageView);
                     }
@@ -476,6 +477,7 @@ public class ReplyAdapter extends RecyclerView.Adapter<ReplyAdapter.ViewHolder> 
             if (context != null && !android.text.TextUtils.isEmpty(imgUrl)) {
                 Intent intent = new Intent(context, ImagePreviewActivity.class);
                 intent.putExtra("image_url", imgUrl);
+                intent.putExtra("image_referer", imagePageUrl(context));
                 context.startActivity(intent);
             }
         });
@@ -484,58 +486,8 @@ public class ReplyAdapter extends RecyclerView.Adapter<ReplyAdapter.ViewHolder> 
     /**
      * 从 HTML 内容中提取所有 img 标签的 src URL，并返回去掉 img 标签后的纯 HTML
      */
-    private static String extractImagesFromHtml(String html, List<String> outImageUrls) {
-        if (TextUtils.isEmpty(html)) {
-            return "";
-        }
-        Pattern pattern = Pattern.compile("<img[^>]+src\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>",
-                Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(html);
-        StringBuffer sb = new StringBuffer();
-        while (matcher.find()) {
-            String url = matcher.group(1);
-            // ★ 修复3：补全所有相对路径，否则图片全部丢失
-            String fullUrl = normalizeImageUrl(url);
-            if (fullUrl == null) fullUrl = url;
-
-            // 过滤内联小图/表情，保留在文本中
-            if (fullUrl.contains("smiley") || fullUrl.contains("emoticon")
-                    || fullUrl.contains("face") || fullUrl.contains("/static/image/")
-                    || fullUrl.contains("stamp") || fullUrl.contains("magic")
-                    || fullUrl.contains("mini") || fullUrl.contains("icon")) {
-                // 将原img标签中的src替换为补全后的完整URL
-                String origTag = matcher.group(0);
-                String newTag = origTag.replaceFirst("src\\s*=\\s*['\"][^'\"]*['\"]",
-                        "src=\"" + fullUrl + "\"");
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(newTag));
-                continue;
-            }
-            // 大图：只接受 http/https
-            if (fullUrl.startsWith("http://") || fullUrl.startsWith("https://")) {
-                outImageUrls.add(fullUrl);
-            }
-            matcher.appendReplacement(sb, "");
-        }
-        matcher.appendTail(sb);
-        return sb.toString();
-    }
-
-    /**
-     * 补全图片URL：处理 //、/ 和 ./ 开头的相对路径
-     */
-    private static String normalizeImageUrl(String url) {
-        if (TextUtils.isEmpty(url)) return null;
-        if (url.startsWith("//")) {
-            return "https:" + url;
-        } else if (url.startsWith("/")) {
-            return HttpClient.BASE_URL + url.substring(1);
-        } else if (url.startsWith("./")) {
-            return HttpClient.BASE_URL + url.substring(2);
-        } else if (url.startsWith("http://") || url.startsWith("https://")) {
-            return url;
-        }
-        // 其他情况（不含协议的相对路径如 "data/attachment/..."）
-        return HttpClient.BASE_URL + url;
+    private static String extractImagesFromHtml(String html, String pageUrl, List<String> outImageUrls) {
+        return com.solosu.mtforum.network.PostImages.separate(html, pageUrl, outImageUrls);
     }
 
     /**
@@ -543,7 +495,7 @@ public class ReplyAdapter extends RecyclerView.Adapter<ReplyAdapter.ViewHolder> 
      */
     private static void loadReplyImages(Context context, String html, LinearLayout container) {
         List<String> urls = new ArrayList<>();
-        extractImagesFromHtml(html, urls);
+        extractImagesFromHtml(html, imagePageUrl(context), urls);
         if (urls.isEmpty()) {
             container.setVisibility(View.GONE);
             return;
@@ -566,9 +518,10 @@ public class ReplyAdapter extends RecyclerView.Adapter<ReplyAdapter.ViewHolder> 
             imageView.setFocusable(true);
             setImageClick(context, imageView, imgUrl);
             Glide.with(context)
-                    .load(imgUrl)
+                    .load(com.solosu.mtforum.network.ForumImages.request(imgUrl, imagePageUrl(context)))
+                    .listener(com.solosu.mtforum.network.ForumImages.listener())
                     .placeholder(new ColorDrawable(context.getColor(R.color.background_secondary)))
-                    .error(new ColorDrawable(context.getColor(R.color.divider)))
+                    .error(R.drawable.ic_image_error)
                     .into(imageView);
             container.addView(imageView);
         }
@@ -610,7 +563,8 @@ public class ReplyAdapter extends RecyclerView.Adapter<ReplyAdapter.ViewHolder> 
             final int maxW = getMaxImageWidth(tv.getContext());
 
             Glide.with(tv.getContext())
-                    .load(imgUrl)
+                    .load(com.solosu.mtforum.network.ForumImages.request(imgUrl, imagePageUrl(tv.getContext())))
+                    .listener(com.solosu.mtforum.network.ForumImages.listener())
                     .into(new CustomTarget<Drawable>() {
                         @Override
                         public void onResourceReady(@NonNull Drawable resource,
@@ -641,11 +595,24 @@ public class ReplyAdapter extends RecyclerView.Adapter<ReplyAdapter.ViewHolder> 
                         }
 
                         @Override
+                        public void onLoadFailed(@Nullable Drawable error) {
+                            Drawable fallback = tv.getContext().getDrawable(R.drawable.ic_image_error);
+                            if (fallback != null) {
+                                fallback.setBounds(0, 0, dpToPx(tv.getContext(), 24), dpToPx(tv.getContext(), 24));
+                                placeholder.setReal(fallback, tv);
+                            }
+                        }
+
+                        @Override
                         public void onLoadCleared(@Nullable Drawable placeholderD) {
                         }
                     });
             return placeholder;
         };
+    }
+
+    private static String imagePageUrl(Context context) {
+        return context instanceof ThreadDetailActivity ? ((ThreadDetailActivity) context).imagePageUrl() : HttpClient.BASE_URL;
     }
 
     private static int dpToPx(Context context, int dp) {

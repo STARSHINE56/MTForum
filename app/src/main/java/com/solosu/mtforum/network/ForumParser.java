@@ -1,6 +1,6 @@
 package com.solosu.mtforum.network;
 
-import android.text.TextUtils;
+
 
 import com.solosu.mtforum.model.ChatMessage;
 import com.solosu.mtforum.model.ForumCategory;
@@ -32,8 +32,12 @@ import java.util.regex.Pattern;
  * 解析 Discuz! 移动端输出的结构化 HTML
  */
 public class ForumParser {
+    private static final class TextUtils {
+        static boolean isEmpty(CharSequence value) { return value == null || value.length() == 0; }
+    }
 
-    private static final String BASE_DOMAIN = "https://bbs.binmt.cc/";
+
+    private static final String BASE_DOMAIN = ForumPageGuard.BASE_URL;
 
     public static String getBaseDomain() {
         return BASE_DOMAIN;
@@ -43,14 +47,18 @@ public class ForumParser {
      * 解析首页/帖子列表（Comiis App 模板适配）
      */
     public static List<Thread> parseThreadList(String html) {
+        return ForumDiagnostics.parse("home_list", () -> parseThreadListInternal(html));
+    }
+
+    private static List<Thread> parseThreadListInternal(String html) {
         List<Thread> threads = new ArrayList<>();
-        Document doc = Jsoup.parse(html);
+        Document doc = ForumPageGuard.parse(html, "home_list");
 
         // Comiis App 模板的帖子容器
         Elements items = doc.select("li.forumlist_li");
         if (items.isEmpty()) {
             // 兜底：查找包含 thread- 链接的 li 元素
-            Elements links = doc.select("a[href*=thread-]");
+            Elements links = doc.select("a[href*=thread-], a[href*=viewthread][href*=tid=]");
             for (Element link : links) {
                 Element parent = link.closest("li");
                 if (parent != null) {
@@ -60,17 +68,18 @@ public class ForumParser {
         }
 
         // 预编译正则
-        Pattern tidPattern = Pattern.compile("thread-(\\d+)-1-1\\.html");
+        Pattern tidPattern = Pattern.compile("(?:thread-|[?&]tid=)(\\d+)");
         Pattern fidPattern = Pattern.compile("forum-(\\d+)-1\\.html");
 
+        Set<String> seen = new HashSet<>();
         for (Element item : items) {
             try {
                 Thread t = new Thread();
 
                 // === 标题 & tid ===
-                Element titleLink = item.select(".mmlist_li_box h2 a[href*=thread-]").first();
+                Element titleLink = item.select(".mmlist_li_box h2 a[href*=thread-], .mmlist_li_box h2 a[href*=viewthread][href*=tid=]").first();
                 if (titleLink == null) {
-                    titleLink = item.select("a[href*=thread-]").first();
+                    titleLink = item.select("a[href*=thread-], a[href*=viewthread][href*=tid=]").first();
                 }
                 if (titleLink == null) continue;
 
@@ -78,6 +87,7 @@ public class ForumParser {
                 Matcher tidMatcher = tidPattern.matcher(href);
                 if (!tidMatcher.find()) continue;
                 t.setTid(tidMatcher.group(1));
+                if (!seen.add(t.getTid())) continue;
 
                 // 标题：只取 ownText（排除热度徽章等子元素文本）
                 String title = titleLink.ownText().trim();
@@ -150,16 +160,7 @@ public class ForumParser {
                 t.setHasImage(item.select(".mmlist_li_box .comiis_pyqlist_imgs, .mmlist_li_box .comiis_pyqlist_img").size() > 0);
                 
                 // 提取帖子封面图URL
-                Element imgEl = item.select(".mmlist_li_box .comiis_pyqlist_imgs img, .mmlist_li_box .comiis_pyqlist_img img, .mmlist_li_box img").first();
-                if (imgEl != null) {
-                    String imgSrc = firstNonEmptyAttr(imgEl, "comiis_loadimages", "data-original", "data-src", "data-file", "file", "src");
-                    if (!TextUtils.isEmpty(imgSrc)) {
-                        String fullUrl = resolveAttachmentUrl(imgSrc);
-                        if (isPostImageUrl(fullUrl)) {
-                            t.setThumbnailUrl(fullUrl);
-                        }
-                    }
-                }
+                populateThreadImages(item, t);
 
 // === 隐藏内容检测 ===
                 Element bodyText = item.select(".list_body .f_b").first();
@@ -171,9 +172,10 @@ public class ForumParser {
                 t.setSticky(isStickyThread(item));
 
                 threads.add(t);
-            } catch (Exception ignored) {}
+            } catch (Exception error) { ForumDiagnostics.failure("home_list", "row_exception_" + error.getClass().getSimpleName()); }
         }
 
+        ForumPageGuard.requireList(doc, threads.size(), "home_list");
         return threads;
     }
 
@@ -306,16 +308,7 @@ public class ForumParser {
                 t.setHasImage(item.select(".mmlist_li_box .comiis_pyqlist_imgs, .mmlist_li_box .comiis_pyqlist_img").size() > 0);
                 
                 // 提取帖子封面图URL
-                Element imgEl = item.select(".mmlist_li_box .comiis_pyqlist_imgs img, .mmlist_li_box .comiis_pyqlist_img img, .mmlist_li_box img").first();
-                if (imgEl != null) {
-                    String imgSrc = firstNonEmptyAttr(imgEl, "comiis_loadimages", "data-original", "data-src", "data-file", "file", "src");
-                    if (!TextUtils.isEmpty(imgSrc)) {
-                        String fullUrl = resolveAttachmentUrl(imgSrc);
-                        if (isPostImageUrl(fullUrl)) {
-                            t.setThumbnailUrl(fullUrl);
-                        }
-                    }
-                }
+                populateThreadImages(item, t);
 
                 populateThreadImages(item, t);
                 threads.add(t);
@@ -330,14 +323,18 @@ public class ForumParser {
      * 与 parseThreadList() 使用相同 Comiis 模板选择器
      */
     public static List<Thread> parseForumThreadList(String html) {
+        return ForumDiagnostics.parse("forum_list", () -> parseForumThreadListInternal(html));
+    }
+
+    private static List<Thread> parseForumThreadListInternal(String html) {
         List<Thread> threads = new ArrayList<>();
-        Document doc = Jsoup.parse(html);
+        Document doc = ForumPageGuard.parse(html, "forum_list");
 
         // Comiis App 模板的帖子容器
         Elements items = doc.select("li.forumlist_li");
         if (items.isEmpty()) {
             // 兜底:查找包含 thread- 链接的 li 元素
-            Elements links = doc.select("a[href*=thread-]");
+            Elements links = doc.select("a[href*=thread-], a[href*=viewthread][href*=tid=]");
             for (Element link : links) {
                 Element parent = link.closest("li");
                 if (parent != null) {
@@ -347,17 +344,18 @@ public class ForumParser {
         }
 
         // 预编译正则
-        Pattern tidPattern = Pattern.compile("thread-(\\d+)-1-1\\.html");
+        Pattern tidPattern = Pattern.compile("(?:thread-|[?&]tid=)(\\d+)");
         Pattern fidPattern = Pattern.compile("forum-(\\d+)-1\\.html");
 
+        Set<String> seen = new HashSet<>();
         for (Element item : items) {
             try {
                 Thread t = new Thread();
 
                 // === 标题 & tid ===
-                Element titleLink = item.select(".mmlist_li_box h2 a[href*=thread-]").first();
+                Element titleLink = item.select(".mmlist_li_box h2 a[href*=thread-], .mmlist_li_box h2 a[href*=viewthread][href*=tid=]").first();
                 if (titleLink == null) {
-                    titleLink = item.select("a[href*=thread-]").first();
+                    titleLink = item.select("a[href*=thread-], a[href*=viewthread][href*=tid=]").first();
                 }
                 if (titleLink == null) continue;
 
@@ -365,6 +363,7 @@ public class ForumParser {
                 Matcher tidMatcher = tidPattern.matcher(href);
                 if (!tidMatcher.find()) continue;
                 t.setTid(tidMatcher.group(1));
+                if (!seen.add(t.getTid())) continue;
 
                 // 标题：只取 ownText（排除热度徽章等子元素文本）
                 String title = titleLink.ownText().trim();
@@ -437,16 +436,7 @@ public class ForumParser {
                 t.setHasImage(item.select(".mmlist_li_box .comiis_pyqlist_imgs, .mmlist_li_box .comiis_pyqlist_img").size() > 0);
                 
                 // 提取帖子封面图URL
-                Element imgEl = item.select(".mmlist_li_box .comiis_pyqlist_imgs img, .mmlist_li_box .comiis_pyqlist_img img, .mmlist_li_box img").first();
-                if (imgEl != null) {
-                    String imgSrc = firstNonEmptyAttr(imgEl, "comiis_loadimages", "data-original", "data-src", "data-file", "file", "src");
-                    if (!TextUtils.isEmpty(imgSrc)) {
-                        String fullUrl = resolveAttachmentUrl(imgSrc);
-                        if (isPostImageUrl(fullUrl)) {
-                            t.setThumbnailUrl(fullUrl);
-                        }
-                    }
-                }
+                populateThreadImages(item, t);
 
                 // 隐藏内容检测
                 Element bodyText = item.select(".list_body .f_b").first();
@@ -460,9 +450,10 @@ public class ForumParser {
                 t.setSticky(isStickyThread(item));
 
                 threads.add(t);
-            } catch (Exception ignored) {}
+            } catch (Exception error) { ForumDiagnostics.failure("forum_list", "row_exception_" + error.getClass().getSimpleName()); }
         }
 
+        ForumPageGuard.requireList(doc, threads.size(), "forum_list");
         return threads;
     }
 
@@ -1640,20 +1631,16 @@ public class ForumParser {
     }
 
     public static PostDetail parseThreadDetail(String html) {
+        return ForumDiagnostics.parse("thread_detail", () -> parseThreadDetailInternal(html));
+    }
+
+    private static PostDetail parseThreadDetailInternal(String html) {
         PostDetail detail = new PostDetail();
-
-        // 某些帖子请求可能返回空响应（网络断开、服务端临时无响应或被重定向）。
-        // 不能把 null 直接交给 Jsoup/Pattern.matcher，否则 Android 会抛出
-        // "s == null" 这类不具备可读性的 NPE，详情页就会完全空白。
-        if (TextUtils.isEmpty(html)) {
-            detail.setReplies(new ArrayList<ReplyItem>());
-            detail.setImageUrls(new ArrayList<String>());
-            detail.setCurrentPage(1);
-            detail.setTotalPages(1);
-            return detail;
+        ForumDiagnostics.html("thread_detail_raw", html);
+        Document doc = ForumPageGuard.parse(html, "thread_detail");
+        if (doc.select(".comiis_postli, .comiis_message, td.t_f, div.postbody, article").isEmpty()) {
+            throw ForumPageGuard.failure("thread_detail", "selector_mismatch", "帖子详情解析失败，页面格式可能已变化，请重试");
         }
-
-        Document doc = Jsoup.parse(html);
 
         // === 1. 版块信息 ===
         Element forumLink = doc.select("div.comiis_head a.kmtit[href*=forum-]").first();
@@ -1717,9 +1704,14 @@ public class ForumParser {
                 }
             }
             detail.setReplies(new ArrayList<ReplyItem>());
-            detail.setImageUrls(new ArrayList<String>());
+            Element fallbackBody = doc.selectFirst("div.comiis_message, td.t_f, div.message, div.postbody, article");
+            Element fallbackPost = fallbackBody == null ? null : fallbackBody.closest("[id^=post_], article, .comiis_postli");
+            if (fallbackPost == null && fallbackBody != null) fallbackPost = fallbackBody.parent();
+            detail.setImageUrls(PostImages.collectPost(fallbackBody, fallbackPost, BASE_DOMAIN));
+            ForumDiagnostics.images("parser_fallback", detail.getImageUrls());
             detail.setCurrentPage(1);
             detail.setTotalPages(1);
+            ForumDiagnostics.parsed("thread_detail", 1);
             return detail;
         }
 
@@ -1775,7 +1767,7 @@ public class ForumParser {
         }
 
         // === 6. 帖子正文 + 附件图片 ===
-        Element opMsg = opPostli.select("div.comiis_message").first();
+        Element opMsg = opPostli.select("div.comiis_message, td.t_f, div.postbody, div.message").first();
         if (opMsg != null) {
             // ★ 尝试多种选择器提取正文内容（优先精确选择器，兜底取整个消息区）
             Element contentDiv = opMsg.select("div.comiis_a.comiis_message_table.cl").first();
@@ -1817,18 +1809,7 @@ public class ForumParser {
             // 无论正文使用哪一个选择器，都必须提取正文中的懒加载图片。
             // 旧代码把这段逻辑放在 contentDiv == null 分支中，导致大多数正常帖子
             // 虽然 HTML 中有图片，但 imageUrls 始终为空。
-            Element messagesDiv = opMsg.select("div.comiis_messages").first();
-            if (messagesDiv == null) messagesDiv = opMsg;
-            List<String> attachImageUrls = new ArrayList<>();
-            for (Element img : messagesDiv.select("img")) {
-                String realSrc = firstNonEmptyAttr(img,
-                        "comiis_loadimages", "file", "data-original", "data-src",
-                        "data-file", "data-lazy-src", "src");
-                String fullUrl = resolveAttachmentUrl(realSrc);
-                if (isPostImageUrl(fullUrl) && !attachImageUrls.contains(fullUrl)) {
-                    attachImageUrls.add(fullUrl);
-                }
-            }
+            List<String> attachImageUrls = PostImages.collectPost(opMsg, opPostli, BASE_DOMAIN);
             detail.setImageUrls(attachImageUrls);
 
             // 隐藏内容检测
@@ -1896,6 +1877,10 @@ public class ForumParser {
                 detail.setLikeUserNames(likeNames);
             }
         }
+
+        // Attachment-only posts must work even when the message container is absent.
+        if (opMsg == null) detail.setImageUrls(PostImages.collectPost(null, opPostli, BASE_DOMAIN));
+        ForumDiagnostics.images("parser_normal", detail.getImageUrls());
 
         // 收藏数(帖子头部操作栏 #comiis_favorite_a 内,与 opMsg 同级在 doc 下,
         // 不能用 opMsg.selectFirst 否则永远 null)
@@ -2108,7 +2093,8 @@ detail.setTotalPages(maxPage);
           detail.setRewardUserAvatars(rewardAvatars);
           detail.setGoodReviewUserAvatars(goodReviewAvatars);
 
-          return detail;
+          ForumDiagnostics.parsed("thread_detail", 1);
+        return detail;
     }
 
     /**
@@ -2546,74 +2532,22 @@ detail.setTotalPages(maxPage);
         return BASE_DOMAIN + url;
     }
 
-    private static boolean isPostImageUrl(String url) {
-        if (TextUtils.isEmpty(url)) return false;
-        String lower = url.toLowerCase();
-        return !lower.contains("none.gif")
-                && !lower.contains("none.png")
-                && !lower.contains("loading")
-                && !lower.contains("smiley")
-                && !lower.contains("face")
-                && !lower.contains("icon")
-                && !lower.contains("stamp")
-                && !lower.contains("magic")
-                && !lower.contains("emoticon")
-                && !lower.contains("/static/image/")
-                && !lower.contains("avatar.php");
-    }
-
     /**
      * 补全附件图片URL（处理相对路径、懒加载路径等）
      * MT论坛移动版使用 comiis_loadimages 属性存储真实URL
      */
     private static String resolveAttachmentUrl(String url) {
-        if (TextUtils.isEmpty(url)) return null;
-        // 如果已经是完整URL
-        if (url.startsWith("http://") || url.startsWith("https://")) {
-            return url;
-        }
-        if (url.startsWith("//")) {
-            return "https:" + url;
-        }
-        if (url.startsWith("/")) {
-            return BASE_DOMAIN + url.substring(1);
-        }
-        // 纯相对路径
-        return BASE_DOMAIN + url;
+        return ForumPageGuard.imageUrl(url, BASE_DOMAIN);
     }
 
     /**
      * 提取列表卡片中的多张帖子图片，供所有帖子列表页面统一使用。
      */
     private static void populateThreadImages(Element item, Thread thread) {
-        List<String> imageUrls = new ArrayList<>();
-        Elements imageElements = item.select(
-                ".comiis_pyqlist_imgs img, .comiis_pyqlist_img img");
-        for (Element image : imageElements) {
-            String src = firstNonEmptyAttr(image,
-                    "comiis_loadimages", "data-original", "data-src",
-                    "data-file", "file", "data-lazy-src", "src");
-            String fullUrl = resolveAttachmentUrl(src);
-            if (isPostImageUrl(fullUrl) && !imageUrls.contains(fullUrl)) {
-                imageUrls.add(fullUrl);
-                if (imageUrls.size() >= 4) break;
-            }
-        }
-
-        // 某些空间帖子页没有图片容器，使用卡片正文区域中的图片作为兜底。
-        if (imageUrls.isEmpty()) {
-            Elements fallbackImages = item.select(".mmlist_li_box img");
-            for (Element image : fallbackImages) {
-                String src = firstNonEmptyAttr(image,
-                        "comiis_loadimages", "data-original", "data-src",
-                        "data-file", "file", "data-lazy-src", "src");
-                String fullUrl = resolveAttachmentUrl(src);
-                if (isPostImageUrl(fullUrl) && !imageUrls.contains(fullUrl)) {
-                    imageUrls.add(fullUrl);
-                    if (imageUrls.size() >= 4) break;
-                }
-            }
-        }
+        Element body = item.selectFirst(".mmlist_li_box, .comiis_pyqlist_imgs, .comiis_pyqlist_img, .list_body");
+        List<String> imageUrls = body == null ? new ArrayList<>() : PostImages.collect(body, BASE_DOMAIN);
+        if ("173805".equals(thread.getTid())) ForumDiagnostics.images("list_173805", imageUrls);
+        if (imageUrls.size() > 4) imageUrls = new ArrayList<>(imageUrls.subList(0, 4));
 
         thread.setImageUrls(imageUrls);
         if (!imageUrls.isEmpty()) {
@@ -2880,8 +2814,12 @@ detail.setTotalPages(maxPage);
      * @return CommunityPageData 对象
      */
     public static CommunityPageData parseCommunityPage(String html) {
+        return ForumDiagnostics.parse("community", () -> parseCommunityPageInternal(html));
+    }
+
+    private static CommunityPageData parseCommunityPageInternal(String html) {
         CommunityPageData data = new CommunityPageData();
-        Document doc = Jsoup.parse(html);
+        Document doc = ForumPageGuard.parse(html, "community");
         
         // === 1. 提取 formhash ===
         // 方式1：从 input[name=formhash] 提取
@@ -3030,6 +2968,11 @@ detail.setTotalPages(maxPage);
         data.setForums(allForums);
         data.setCategories(categories);
         
+        if ((data.getForums() == null || data.getForums().isEmpty())
+                && (data.getCategories() == null || data.getCategories().isEmpty())) {
+            throw ForumPageGuard.failure("community", "selector_mismatch", "论坛版块解析失败，请重试");
+        }
+        ForumDiagnostics.parsed("community", allForums.size());
         return data;
     }
 

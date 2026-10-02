@@ -71,7 +71,7 @@ public class ImagePreviewActivity extends AppCompatActivity {
         }
 
         final List<String> fUrls = urls; // lambda 引用需 final
-        PagerAdapter adapter = new PagerAdapter(fUrls);
+        PagerAdapter adapter = new PagerAdapter(fUrls, getIntent().getStringExtra("image_referer"));
         pager.setAdapter(adapter);
         pager.setCurrentItem(initPos, false);
         if (fUrls.size() > 1) {
@@ -108,8 +108,11 @@ public class ImagePreviewActivity extends AppCompatActivity {
 
         private final List<String> urls;
 
-        PagerAdapter(List<String> urls) {
+        private final String referer;
+
+        PagerAdapter(List<String> urls, String referer) {
             this.urls = urls;
+            this.referer = referer == null ? com.solosu.mtforum.network.HttpClient.BASE_URL : referer;
         }
 
         @NonNull
@@ -124,10 +127,11 @@ public class ImagePreviewActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull VH holder, int position) {
             String url = urls.get(position);
             Glide.with(holder.itemView.getContext())
-                    .load(url)
+                    .load(com.solosu.mtforum.network.ForumImages.request(url, referer))
+                    .listener(com.solosu.mtforum.network.ForumImages.listener())
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .placeholder(new android.graphics.drawable.ColorDrawable(0xFF333333))
-                    .error(new android.graphics.drawable.ColorDrawable(0xFF111111))
+                    .error(R.drawable.ic_image_error)
                     .into(holder.ivImage);
         }
 

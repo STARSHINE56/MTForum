@@ -12,7 +12,6 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -36,13 +35,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * 基于 OkHttp 封装，支持会话保持（Cookie 持久化）
  */
 public class HttpClient {
-    public static final String BASE_URL = "https://bbs.binmt.cc/";
+    public static final String BASE_URL = ForumPageGuard.BASE_URL;
     public static final String MOBILE_SUFFIX = "&mobile=2";
-    public static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+    public static final String USER_AGENT = ForumNetwork.MOBILE_UA;
     public static final String DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     private static volatile HttpClient instance;
     private OkHttpClient client;
+    private OkHttpClient imageClient;
+    private volatile String imageSession = java.util.UUID.randomUUID().toString();
     private Map<String, List<Cookie>> cookieStore;
     private static final String PREF_NAME = "sqapp_cookies";
     private static final String KEY_COOKIES = "cookies_json";
@@ -56,16 +57,12 @@ public class HttpClient {
 
     private HttpClient() {
         cookieStore = new HashMap<>();
-        client = new OkHttpClient.Builder()
-                .connectTimeout(20, TimeUnit.SECONDS)
-                // 图片在后台先被规范化，移动网络上传时仍可能超过普通页面请求时长。
-                .readTimeout(120, TimeUnit.SECONDS)
-                .writeTimeout(120, TimeUnit.SECONDS)
-                .followRedirects(true)
-                .followSslRedirects(true)
+        ForumDiagnostics.setSink(line -> android.util.Log.i("MTForumDiag", line));
+        client = ForumNetwork.clientBuilder()
                 .cookieJar(new CookieJar() {
                     @Override
                     public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
+                        synchronized (cookieStore) {
                         String host = url.host();
                         List<Cookie> existing = cookieStore.get(host);
                         if (existing == null) {
@@ -73,9 +70,14 @@ public class HttpClient {
                             cookieStore.put(host, existing);
                         }
                         for (Cookie cookie : cookies) {
+                            if (appContext != null && VerificationPolicy.trustedUrl(url.toString())) {
+                                CookieManager.getInstance().setCookie(url.toString(), cookie.toString());
+                            }
                             boolean found = false;
                             for (int i = 0; i < existing.size(); i++) {
-                                if (existing.get(i).name().equals(cookie.name())) {
+                                if (existing.get(i).name().equals(cookie.name())
+                                        && existing.get(i).domain().equals(cookie.domain())
+                                        && existing.get(i).path().equals(cookie.path())) {
                                     existing.set(i, cookie);
                                     found = true;
                                     break;
@@ -85,17 +87,34 @@ public class HttpClient {
                                 existing.add(cookie);
                             }
                         }
+                        }
                     }
 
                     @Override
                     public List<Cookie> loadForRequest(HttpUrl url) {
-                        String host = url.host();
-                        List<Cookie> cookies = cookieStore.get(host);
-                        return cookies != null ? cookies : Collections.emptyList();
+                        if (appContext != null && VerificationPolicy.trustedUrl(url.toString())) {
+                            return VerificationCookies.forRequest(CookieManager.getInstance().getCookie(url.toString()), url);
+                        }
+                        List<Cookie> matching = new ArrayList<>();
+                        synchronized (cookieStore) {
+                            for (List<Cookie> stored : cookieStore.values()) {
+                                for (Cookie cookie : stored) {
+                                    if (cookie.expiresAt() > System.currentTimeMillis() && cookie.matches(url)) matching.add(cookie);
+                                }
+                            }
+                        }
+                        return matching;
                     }
                 })
+                .addInterceptor(new VerificationInterceptor(request -> VerificationGate.getInstance().verify(request)))
                 .build();
+        OkHttpClient.Builder images = client.newBuilder().followRedirects(false).followSslRedirects(false);
+        images.interceptors().clear();
+        imageClient = images.addInterceptor(new ForumImageInterceptor(request -> VerificationGate.getInstance().verify(request))).build();
     }
+
+    public String imageSessionKey() { return imageSession; }
+    public okhttp3.Call newImageCall(Request request) { return imageClient.newCall(request); }
 
     public static HttpClient getInstance() {
         if (instance == null) {
@@ -106,6 +125,14 @@ public class HttpClient {
             }
         }
         return instance;
+    }
+
+    private static String readResponseText(Response response) throws IOException {
+        try { return response.body() != null ? response.body().string() : ""; }
+        catch (IOException error) {
+            ForumDiagnostics.failure("body_read", ForumDiagnostics.transportReason(error));
+            throw error;
+        }
     }
 
     /**
@@ -125,15 +152,9 @@ public class HttpClient {
             catch (Exception e) { /* 上同 */ }
         }
         try {
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                    .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                    .get()
-                    .build();
+            Request request = ForumNetwork.pageRequest(url, USER_AGENT, null);
             try (Response response = client.newCall(request).execute()) {
-                String body = response.body() != null ? response.body().string() : "";
+                String body = readResponseText(response);
                 if (appContext != null) {
                     commitCookieStore(appContext);
                 }
@@ -155,16 +176,9 @@ public class HttpClient {
      * GET 请求(带 Referer,用于需要来源校验的 Comiis 插件/表单接口)。
      */
     public String getWithReferer(String url, String referer) throws Exception {
-        Request request = new Request.Builder()
-                .url(url)
-                .header("User-Agent", DESKTOP_USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                .header("Referer", referer)
-                .get()
-                .build();
+        Request request = ForumNetwork.pageRequest(url, DESKTOP_USER_AGENT, referer);
         try (Response response = client.newCall(request).execute()) {
-            String body = response.body() != null ? response.body().string() : "";
+            String body = readResponseText(response);
             if (appContext != null) {
                 commitCookieStore(appContext);
             }
@@ -172,10 +186,32 @@ public class HttpClient {
         }
     }
 
+    public String getCookieStringForUrl(String url) {
+        HttpUrl parsed = HttpUrl.parse(url);
+        if (parsed == null) return "";
+        if (appContext != null && VerificationPolicy.trustedUrl(url)) {
+            String nativeCookies = CookieManager.getInstance().getCookie(url);
+            return nativeCookies == null ? "" : nativeCookies;
+        }
+        StringBuilder value = new StringBuilder();
+        synchronized (cookieStore) {
+            for (List<Cookie> cookies : cookieStore.values()) {
+                for (Cookie cookie : cookies) {
+                    if (cookie.expiresAt() > System.currentTimeMillis() && cookie.matches(parsed)) {
+                        if (value.length() > 0) value.append("; ");
+                        value.append(cookie.name()).append("=").append(cookie.value());
+                    }
+                }
+            }
+        }
+        return value.toString();
+    }
+
     public byte[] getBytes(String url) throws Exception {
         Request request = new Request.Builder()
                 .url(url)
                 .header("User-Agent", USER_AGENT)
+                .header("Referer", BASE_URL)
                 .get()
                 .build();
         try (Response response = client.newCall(request).execute()) {
@@ -188,27 +224,21 @@ public class HttpClient {
      */
     public String getDesktop(String url) throws Exception {
         // 去重：相同 URL 正在请求则等待已有结果，避免重复发送
-        CompletableFuture<String> existing = pendingGets.get(url);
+        CompletableFuture<String> existing = pendingGets.get("desktop:" + url);
         if (existing != null) {
             try { return existing.get(); }
             catch (Exception e) { /* 上次请求失败，继续发起新请求 */ }
         }
         CompletableFuture<String> future = new CompletableFuture<>();
-        CompletableFuture<String> prev = pendingGets.putIfAbsent(url, future);
+        CompletableFuture<String> prev = pendingGets.putIfAbsent("desktop:" + url, future);
         if (prev != null) {
             try { return prev.get(); }
             catch (Exception e) { /* 上同 */ }
         }
         try {
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                    .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                    .get()
-                    .build();
+            Request request = ForumNetwork.pageRequest(url, DESKTOP_USER_AGENT, null);
             try (Response response = client.newCall(request).execute()) {
-                String body = response.body() != null ? response.body().string() : "";
+                String body = readResponseText(response);
                 if (appContext != null) {
                     commitCookieStore(appContext);
                 }
@@ -219,7 +249,7 @@ public class HttpClient {
             future.completeExceptionally(e);
             throw e;
         } finally {
-            pendingGets.remove(url, future);
+            pendingGets.remove("desktop:" + url, future);
         }
     }
 
@@ -256,7 +286,7 @@ public class HttpClient {
                     .post(formBuilder.build())
                     .build();
             try (Response response = client.newCall(request).execute()) {
-                String body = response.body() != null ? response.body().string() : "";
+                String body = readResponseText(response);
                 if (appContext != null) {
                     commitCookieStore(appContext);
                 }
@@ -305,7 +335,7 @@ public class HttpClient {
             if (!android.text.TextUtils.isEmpty(referer)) rb.header("Referer", referer);
             Request request = rb.post(formBuilder.build()).build();
             try (Response response = client.newCall(request).execute()) {
-                String body = response.body() != null ? response.body().string() : "";
+                String body = readResponseText(response);
                 if (appContext != null) {
                     commitCookieStore(appContext);
                 }
@@ -385,7 +415,7 @@ public class HttpClient {
         }
 
         try (okhttp3.Response response = client.newCall(requestBuilder.build()).execute()) {
-            String body = response.body() != null ? response.body().string() : "";
+            String body = readResponseText(response);
             if (appContext != null) {
                 commitCookieStore(appContext);
             }
@@ -425,13 +455,10 @@ public class HttpClient {
      * 获取当前 cookie 值
      */
     public String getCookieValue(String host, String name) {
-        List<Cookie> cookies = cookieStore.get(host);
-        if (cookies != null) {
-            for (Cookie c : cookies) {
-                if (c.name().equals(name)) {
-                    return c.value();
-                }
-            }
+        HttpUrl origin = HttpUrl.parse("https://" + host + "/");
+        if (origin == null) return null;
+        for (Cookie cookie : client.cookieJar().loadForRequest(origin)) {
+            if (cookie.name().equals(name)) return cookie.value();
         }
         return null;
     }
@@ -441,16 +468,7 @@ public class HttpClient {
      * 格式: "name1=value1; name2=value2"
      */
     public String getCookieString() {
-        String host = HttpUrl.parse(BASE_URL).host();
-        List<Cookie> cookies = cookieStore.get(host);
-        if (cookies == null || cookies.isEmpty()) return "";
-
-        StringBuilder sb = new StringBuilder();
-        for (Cookie c : cookies) {
-            if (sb.length() > 0) sb.append("; ");
-            sb.append(c.name()).append("=").append(c.value());
-        }
-        return sb.toString();
+        return getCookieStringForUrl(BASE_URL);
     }
 
     /**
@@ -459,14 +477,8 @@ public class HttpClient {
      * 兼容不同论坛实例的不同 cookiepre 前缀
      */
     public boolean isLoggedIn() {
-        String host = HttpUrl.parse(BASE_URL).host();
-        List<Cookie> cookies = cookieStore.get(host);
-        if (cookies != null) {
-            for (Cookie c : cookies) {
-                if (c.name().endsWith("_auth") && !c.value().isEmpty()) {
-                    return true;
-                }
-            }
+        for (Cookie cookie : client.cookieJar().loadForRequest(HttpUrl.get(BASE_URL))) {
+            if (cookie.name().endsWith("_auth") && !cookie.value().isEmpty()) return true;
         }
         return false;
     }
@@ -480,54 +492,63 @@ public class HttpClient {
      * BASE_URL、host URL 和末尾斜杠的处理不同，因此依次读取多个等价地址。
      */
     public synchronized void syncFromCookieManager() {
-        try {
-            CookieManager manager = CookieManager.getInstance();
-            String[] urls = new String[] {
-                    BASE_URL,
-                    "https://bbs.binmt.cc",
-                    "https://bbs.binmt.cc/",
-                    "http://bbs.binmt.cc/"
-            };
-            StringBuilder merged = new StringBuilder();
-            for (String url : urls) {
-                String value = manager.getCookie(url);
-                if (value == null || value.trim().isEmpty()) continue;
-                if (merged.length() > 0) merged.append("; ");
-                merged.append(value);
+        CookieManager manager = CookieManager.getInstance();
+        manager.flush();
+        HttpUrl url = HttpUrl.get(BASE_URL);
+        List<Cookie> nativeCookies = new ArrayList<>();
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.GET_COOKIE_INFO)) {
+            for (String info : androidx.webkit.CookieManagerCompat.getCookieInfo(manager, BASE_URL)) {
+                Cookie cookie = Cookie.parse(url, info);
+                if (cookie != null) nativeCookies.add(cookie);
             }
-            if (merged.length() == 0) return;
-
-            String host = HttpUrl.parse(BASE_URL).host();
-            List<Cookie> existing = cookieStore.get(host);
-            if (existing == null) {
-                existing = new ArrayList<>();
-                cookieStore.put(host, existing);
-            }
-            String[] pairs = merged.toString().split(";\\s*");
-            for (String pair : pairs) {
-                int eq = pair.indexOf('=');
-                if (eq <= 0) continue;
-                String name = pair.substring(0, eq).trim();
-                String value = pair.substring(eq + 1).trim();
-                if (name.isEmpty() || value.isEmpty()) continue;
-                Cookie old = null;
-                for (Cookie c : existing) {
-                    if (c.name().equals(name)) { old = c; break; }
-                }
-                Cookie.Builder b = new Cookie.Builder().name(name).value(value)
-                        .domain(host).path("/").expiresAt(Long.MAX_VALUE);
-                if (old != null && old.secure()) b.secure();
-                boolean replaced = false;
-                for (int i = 0; i < existing.size(); i++) {
-                    if (existing.get(i).name().equals(name)) {
-                        existing.set(i, b.build()); replaced = true; break;
-                    }
-                }
-                if (!replaced) existing.add(b.build());
-            }
-            if (appContext != null) commitCookieStore(appContext);
-        } catch (Exception ignored) {
+        } else {
+            // Older WebViews expose only a request header. Keep a session-only account snapshot;
+            // actual requests still read the native jar, which retains expiry/path/HttpOnly.
+            nativeCookies = VerificationCookies.forRequest(manager.getCookie(BASE_URL), url);
         }
+        synchronized (cookieStore) { cookieStore.put(url.host(), nativeCookies); }
+        if (appContext != null) commitCookieStore(appContext);
+    }
+
+
+    /** Probe uses the identical request and shared CookieJar, but never triggers another gate. */
+    boolean probeVerification(Request original) {
+        Request probe = original.newBuilder().tag(VerificationInterceptor.Probe.class, VerificationInterceptor.PROBE).build();
+        OkHttpClient probeClient = client.newBuilder().callTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS).build();
+        try (Response response = probeClient.newCall(probe).execute()) {
+            if (response.code() != 200 || !VerificationPolicy.trustedUrl(response.request().url().toString())) return false;
+            String body = readResponseText(response);
+            return VerificationPolicy.forumContent(body)
+                    && !VerificationPolicy.challenge(body, response.header("Content-Type"));
+        } catch (IOException error) {
+            ForumDiagnostics.failure("verification_probe", ForumDiagnostics.transportReason(error));
+            return false;
+        }
+    }
+
+    /** Seed WebView before loading; retain real Set-Cookie attributes and await the final native write. */
+    void prepareVerificationCookies(String url, Runnable ready) {
+        HttpUrl target = HttpUrl.get(url);
+        CookieManager manager = CookieManager.getInstance();
+        manager.setAcceptCookie(true);
+        // Existing native cookies already include server responses and prior successful challenges.
+        // Only migrate the legacy jar when the native jar is absent, never overwrite fresher cookies.
+        if (manager.getCookie(url) != null) { ready.run(); return; }
+        List<Cookie> cookies = new ArrayList<>();
+        synchronized (cookieStore) {
+            for (List<Cookie> stored : cookieStore.values()) for (Cookie cookie : stored) {
+                if (cookie.expiresAt() > System.currentTimeMillis() && cookie.matches(target)) cookies.add(cookie);
+            }
+        }
+        seedVerificationCookie(manager, url, cookies, 0, ready);
+    }
+
+    private void seedVerificationCookie(CookieManager manager, String url, List<Cookie> cookies, int index, Runnable ready) {
+        if (index == cookies.size()) { manager.flush(); ready.run(); return; }
+        manager.setCookie(url, cookies.get(index).toString(), accepted ->
+                seedVerificationCookie(manager, url, cookies, index + 1, ready));
     }
 
 
@@ -536,24 +557,21 @@ public class HttpClient {
      * 用于登录由原生 OkHttp 完成、随后需要在 WebView 或混合页面中继续使用登录态的场景。
      */
     public synchronized void syncToCookieManager() {
-        try {
-            CookieManager webViewCookieMgr = CookieManager.getInstance();
-            String cookies = getCookieString();
-            if (cookies == null || cookies.isEmpty()) return;
-            String[] pairs = cookies.split(";\\s*");
-            for (String pair : pairs) {
-                if (pair == null || pair.trim().isEmpty()) continue;
-                webViewCookieMgr.setCookie(BASE_URL, pair.trim());
+        CookieManager manager = CookieManager.getInstance();
+        if (manager.getCookie(BASE_URL) != null) return;
+        synchronized (cookieStore) {
+            for (List<Cookie> stored : cookieStore.values()) for (Cookie cookie : stored) {
+                HttpUrl origin = new HttpUrl.Builder().scheme("https")
+                        .host(cookie.domain()).encodedPath(cookie.path()).build();
+                if (cookie.expiresAt() > System.currentTimeMillis()
+                        && cookie.matches(HttpUrl.get(BASE_URL)) && VerificationPolicy.trustedUrl(origin.toString())) {
+                    manager.setCookie(origin.toString(), cookie.toString());
+                }
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                webViewCookieMgr.flush();
-            } else {
-                CookieSyncManager.getInstance().sync();
-            }
-        } catch (Exception ignored) {
-            // Cookie 同步失败不应阻断原生请求流程
         }
+        manager.flush();
     }
+
 /**
      * 初始化 — 从磁盘恢复持久化的 Cookie
      * 在 Application.onCreate() 或首次使用前调用一次
@@ -562,9 +580,10 @@ public class HttpClient {
     public synchronized void init(Context context) {
         if (initialized) return;
         initialized = true;
-        this.appContext = context;
-        restoreCookieStore(context);
-        // ★ 初始化后立即从 WebView CookieManager 拉取 Cookie，确保双向同步
+        this.appContext = context.getApplicationContext();
+        restoreCookieStoreInternal(context, false);
+        CookieManager.getInstance().setAcceptCookie(true);
+        if (CookieManager.getInstance().getCookie(BASE_URL) == null) syncToCookieManager();
         syncFromCookieManager();
     }
 
@@ -577,6 +596,7 @@ public class HttpClient {
             SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
             JSONArray cookiesArray = new JSONArray();
 
+            synchronized (cookieStore) {
             for (Map.Entry<String, List<Cookie>> entry : cookieStore.entrySet()) {
                 String host = entry.getKey();
                 for (Cookie cookie : entry.getValue()) {
@@ -589,6 +609,7 @@ public class HttpClient {
                     obj.put("expiresAt", cookie.expiresAt());
                     obj.put("secure", cookie.secure());
                     obj.put("httpOnly", cookie.httpOnly());
+                    obj.put("hostOnly", cookie.hostOnly());
                     obj.put("persistent", cookie.persistent());
                     if (cookie.persistent()) {
                         // 只持久化 persistent cookie（登录态 cookie 通常是 persistent 的）
@@ -600,6 +621,7 @@ public class HttpClient {
                 }
             }
 
+            }
             prefs.edit().putString(KEY_COOKIES, cookiesArray.toString()).apply();
         } catch (Exception ignored) {
             // 序列化失败不抛出
@@ -611,6 +633,15 @@ public class HttpClient {
      * 在应用启动时调用
      */
     public synchronized void restoreCookieStore(Context context) {
+        restoreCookieStoreInternal(context, true);
+        syncToCookieManager();
+    }
+
+    private void restoreCookieStoreInternal(Context context, boolean explicitAccountSwitch) {
+        if (explicitAccountSwitch) {
+            imageSession = java.util.UUID.randomUUID().toString();
+            imageClient.dispatcher().cancelAll();
+        }
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
             String json = prefs.getString(KEY_COOKIES, null);
@@ -622,19 +653,22 @@ public class HttpClient {
             for (int i = 0; i < cookiesArray.length(); i++) {
                 JSONObject obj = cookiesArray.getJSONObject(i);
                 String host = obj.optString("host", HttpUrl.parse(BASE_URL).host());
+                // Header-only WebView snapshots must never become permanent clearance cookies.
+                if (!explicitAccountSwitch && !obj.optBoolean("persistent", true)) continue;
 
                 Cookie.Builder builder = new Cookie.Builder()
                         .name(obj.getString("name"))
                         .value(obj.getString("value"))
-                        .domain(obj.optString("domain", HttpUrl.parse(BASE_URL).host()))
-                        .path(obj.optString("path", "/"))
-                        .expiresAt(obj.optLong("expiresAt", Long.MAX_VALUE));
+                        .path(obj.optString("path", "/"));
+                String domain = obj.optString("domain", HttpUrl.parse(BASE_URL).host());
+                if (obj.optBoolean("hostOnly")) builder.hostOnlyDomain(domain); else builder.domain(domain);
+                if (obj.optBoolean("persistent", true)) builder.expiresAt(obj.optLong("expiresAt", Long.MAX_VALUE));
 
                 if (obj.optBoolean("secure")) {
                     builder.secure();
                 }
                 if (obj.optBoolean("httpOnly")) {
-                    // Cookie.Builder 没有 httpOnly() 方法，跳过
+                    builder.httpOnly();
                 }
 
                 Cookie cookie = builder.build();
@@ -674,6 +708,7 @@ public class HttpClient {
             String name = pair.substring(0, eq).trim();
             String value = pair.substring(eq + 1).trim();
             if (name.isEmpty()) continue;
+            CookieManager.getInstance().setCookie(BASE_URL, name + "=" + value + "; Path=/; Secure");
             Cookie.Builder b = new Cookie.Builder().name(name).value(value)
                     .domain(host).path("/").expiresAt(Long.MAX_VALUE);
             boolean replaced = false;
@@ -689,25 +724,43 @@ public class HttpClient {
     }
 
     public void clearCookies() {
-        cookieStore.clear();
+        imageSession = java.util.UUID.randomUUID().toString();
+        imageClient.dispatcher().cancelAll();
+        VerificationGate.getInstance().cancelForSessionChange();
+        CookieManager manager = CookieManager.getInstance();
+        // Delete only cookies visible to this forum, synchronously before account replacement.
+        java.util.Set<String> urls = new java.util.HashSet<>();
+        urls.add(BASE_URL);
+        synchronized (cookieStore) {
+            for (List<Cookie> stored : cookieStore.values()) for (Cookie cookie : stored) {
+                if (cookie.domain().equals("bbs.binmt.cc")) urls.add(BASE_URL.substring(0, BASE_URL.length() - 1) + cookie.path());
+            }
+        }
+        for (String url : urls) {
+            String header = manager.getCookie(url);
+            HttpUrl parsed = HttpUrl.get(url);
+            for (Cookie cookie : VerificationCookies.forRequest(header, parsed)) {
+                for (String domain : new String[]{"", "; Domain=bbs.binmt.cc", "; Domain=.bbs.binmt.cc"}) {
+                    manager.setCookie(url, cookie.name() + "=; Path=" + parsed.encodedPath()
+                            + domain + "; Max-Age=0; Secure");
+                    manager.setCookie(BASE_URL, cookie.name() + "=; Path=/" + domain + "; Max-Age=0; Secure");
+                }
+            }
+        }
+        manager.flush();
+        synchronized (cookieStore) { cookieStore.clear(); }
     }
     /**
      * 清除所有 Cookie（内存 + 磁盘 + WebView）
      * 在登出时调用
      */
     public void clearCookies(Context context) {
-        cookieStore.clear();
+        clearCookies();
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
             prefs.edit().remove(KEY_COOKIES).apply();
         } catch (Exception ignored) {
         }
-        // build59: WebView CookieManager 也要清, 不然下次启动 syncFromCookieManager 又拉回来
-        try {
-            android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
-            cm.removeAllCookies(null);
-            cm.flush();
-        } catch (Exception ignored) {
-        }
+
     }
 }

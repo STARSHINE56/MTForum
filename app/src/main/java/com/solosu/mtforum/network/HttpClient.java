@@ -12,7 +12,6 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -38,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class HttpClient {
     public static final String BASE_URL = ForumPageGuard.BASE_URL;
     public static final String MOBILE_SUFFIX = "&mobile=2";
-    public static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+    public static final String USER_AGENT = ForumNetwork.MOBILE_UA;
     public static final String DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     private static volatile HttpClient instance;
@@ -56,27 +55,8 @@ public class HttpClient {
 
     private HttpClient() {
         cookieStore = new HashMap<>();
-        client = new OkHttpClient.Builder()
-                .connectTimeout(20, TimeUnit.SECONDS)
-                .callTimeout(150, TimeUnit.SECONDS)
-                .addInterceptor(chain -> {
-                    Response response = chain.proceed(chain.request());
-                    try {
-                        ResponsePolicy.checkStatus(response.code());
-                        if (chain.request().url().isHttps() && !response.request().url().isHttps()) {
-                            throw new IOException("拒绝将 HTTPS 请求重定向到不安全的 HTTP 地址");
-                        }
-                        return response;
-                    } catch (IOException error) {
-                        response.close();
-                        throw error;
-                    }
-                })
-                // 图片在后台先被规范化，移动网络上传时仍可能超过普通页面请求时长。
-                .readTimeout(120, TimeUnit.SECONDS)
-                .writeTimeout(120, TimeUnit.SECONDS)
-                .followRedirects(true)
-                .followSslRedirects(true)
+        ForumDiagnostics.setSink(line -> android.util.Log.i("MTForumDiag", line));
+        client = ForumNetwork.clientBuilder()
                 .cookieJar(new CookieJar() {
                     @Override
                     public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
@@ -134,6 +114,14 @@ public class HttpClient {
         return instance;
     }
 
+    private static String readResponseText(Response response) throws IOException {
+        try { return response.body() != null ? response.body().string() : ""; }
+        catch (IOException error) {
+            ForumDiagnostics.failure("body_read", ForumDiagnostics.transportReason(error));
+            throw error;
+        }
+    }
+
     /**
      * GET 请求
      */
@@ -151,15 +139,9 @@ public class HttpClient {
             catch (Exception e) { /* 上同 */ }
         }
         try {
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                    .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                    .get()
-                    .build();
+            Request request = ForumNetwork.pageRequest(url, USER_AGENT, null);
             try (Response response = client.newCall(request).execute()) {
-                String body = response.body() != null ? response.body().string() : "";
+                String body = readResponseText(response);
                 if (appContext != null) {
                     commitCookieStore(appContext);
                 }
@@ -181,16 +163,9 @@ public class HttpClient {
      * GET 请求(带 Referer,用于需要来源校验的 Comiis 插件/表单接口)。
      */
     public String getWithReferer(String url, String referer) throws Exception {
-        Request request = new Request.Builder()
-                .url(url)
-                .header("User-Agent", DESKTOP_USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                .header("Referer", referer)
-                .get()
-                .build();
+        Request request = ForumNetwork.pageRequest(url, DESKTOP_USER_AGENT, referer);
         try (Response response = client.newCall(request).execute()) {
-            String body = response.body() != null ? response.body().string() : "";
+            String body = readResponseText(response);
             if (appContext != null) {
                 commitCookieStore(appContext);
             }
@@ -244,15 +219,9 @@ public class HttpClient {
             catch (Exception e) { /* 上同 */ }
         }
         try {
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                    .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                    .get()
-                    .build();
+            Request request = ForumNetwork.pageRequest(url, DESKTOP_USER_AGENT, null);
             try (Response response = client.newCall(request).execute()) {
-                String body = response.body() != null ? response.body().string() : "";
+                String body = readResponseText(response);
                 if (appContext != null) {
                     commitCookieStore(appContext);
                 }
@@ -300,7 +269,7 @@ public class HttpClient {
                     .post(formBuilder.build())
                     .build();
             try (Response response = client.newCall(request).execute()) {
-                String body = response.body() != null ? response.body().string() : "";
+                String body = readResponseText(response);
                 if (appContext != null) {
                     commitCookieStore(appContext);
                 }
@@ -349,7 +318,7 @@ public class HttpClient {
             if (!android.text.TextUtils.isEmpty(referer)) rb.header("Referer", referer);
             Request request = rb.post(formBuilder.build()).build();
             try (Response response = client.newCall(request).execute()) {
-                String body = response.body() != null ? response.body().string() : "";
+                String body = readResponseText(response);
                 if (appContext != null) {
                     commitCookieStore(appContext);
                 }
@@ -429,7 +398,7 @@ public class HttpClient {
         }
 
         try (okhttp3.Response response = client.newCall(requestBuilder.build()).execute()) {
-            String body = response.body() != null ? response.body().string() : "";
+            String body = readResponseText(response);
             if (appContext != null) {
                 commitCookieStore(appContext);
             }

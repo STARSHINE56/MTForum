@@ -47,8 +47,12 @@ public class ForumParser {
      * 解析首页/帖子列表（Comiis App 模板适配）
      */
     public static List<Thread> parseThreadList(String html) {
+        return ForumDiagnostics.parse("home_list", () -> parseThreadListInternal(html));
+    }
+
+    private static List<Thread> parseThreadListInternal(String html) {
         List<Thread> threads = new ArrayList<>();
-        Document doc = ForumPageGuard.parse(html);
+        Document doc = ForumPageGuard.parse(html, "home_list");
 
         // Comiis App 模板的帖子容器
         Elements items = doc.select("li.forumlist_li");
@@ -177,10 +181,10 @@ public class ForumParser {
                 t.setSticky(isStickyThread(item));
 
                 threads.add(t);
-            } catch (Exception ignored) {}
+            } catch (Exception error) { ForumDiagnostics.failure("home_list", "row_exception_" + error.getClass().getSimpleName()); }
         }
 
-        ForumPageGuard.requireList(doc, threads.size());
+        ForumPageGuard.requireList(doc, threads.size(), "home_list");
         return threads;
     }
 
@@ -337,8 +341,12 @@ public class ForumParser {
      * 与 parseThreadList() 使用相同 Comiis 模板选择器
      */
     public static List<Thread> parseForumThreadList(String html) {
+        return ForumDiagnostics.parse("forum_list", () -> parseForumThreadListInternal(html));
+    }
+
+    private static List<Thread> parseForumThreadListInternal(String html) {
         List<Thread> threads = new ArrayList<>();
-        Document doc = ForumPageGuard.parse(html);
+        Document doc = ForumPageGuard.parse(html, "forum_list");
 
         // Comiis App 模板的帖子容器
         Elements items = doc.select("li.forumlist_li");
@@ -469,10 +477,10 @@ public class ForumParser {
                 t.setSticky(isStickyThread(item));
 
                 threads.add(t);
-            } catch (Exception ignored) {}
+            } catch (Exception error) { ForumDiagnostics.failure("forum_list", "row_exception_" + error.getClass().getSimpleName()); }
         }
 
-        ForumPageGuard.requireList(doc, threads.size());
+        ForumPageGuard.requireList(doc, threads.size(), "forum_list");
         return threads;
     }
 
@@ -1650,10 +1658,14 @@ public class ForumParser {
     }
 
     public static PostDetail parseThreadDetail(String html) {
+        return ForumDiagnostics.parse("thread_detail", () -> parseThreadDetailInternal(html));
+    }
+
+    private static PostDetail parseThreadDetailInternal(String html) {
         PostDetail detail = new PostDetail();
-        Document doc = ForumPageGuard.parse(html);
+        Document doc = ForumPageGuard.parse(html, "thread_detail");
         if (doc.select(".comiis_postli, .comiis_message, td.t_f, div.postbody, article").isEmpty()) {
-            throw new IllegalStateException("帖子详情解析失败，页面格式可能已变化，请重试");
+            throw ForumPageGuard.failure("thread_detail", "selector_mismatch", "帖子详情解析失败，页面格式可能已变化，请重试");
         }
 
         // === 1. 版块信息 ===
@@ -1721,6 +1733,7 @@ public class ForumParser {
             detail.setImageUrls(new ArrayList<String>());
             detail.setCurrentPage(1);
             detail.setTotalPages(1);
+            ForumDiagnostics.parsed("thread_detail", 1);
             return detail;
         }
 
@@ -2109,7 +2122,8 @@ detail.setTotalPages(maxPage);
           detail.setRewardUserAvatars(rewardAvatars);
           detail.setGoodReviewUserAvatars(goodReviewAvatars);
 
-          return detail;
+          ForumDiagnostics.parsed("thread_detail", 1);
+        return detail;
     }
 
     /**
@@ -2869,8 +2883,12 @@ detail.setTotalPages(maxPage);
      * @return CommunityPageData 对象
      */
     public static CommunityPageData parseCommunityPage(String html) {
+        return ForumDiagnostics.parse("community", () -> parseCommunityPageInternal(html));
+    }
+
+    private static CommunityPageData parseCommunityPageInternal(String html) {
         CommunityPageData data = new CommunityPageData();
-        Document doc = ForumPageGuard.parse(html);
+        Document doc = ForumPageGuard.parse(html, "community");
         
         // === 1. 提取 formhash ===
         // 方式1：从 input[name=formhash] 提取
@@ -3021,8 +3039,9 @@ detail.setTotalPages(maxPage);
         
         if ((data.getForums() == null || data.getForums().isEmpty())
                 && (data.getCategories() == null || data.getCategories().isEmpty())) {
-            throw new IllegalStateException("论坛版块解析失败，请重试");
+            throw ForumPageGuard.failure("community", "selector_mismatch", "论坛版块解析失败，请重试");
         }
+        ForumDiagnostics.parsed("community", allForums.size());
         return data;
     }
 

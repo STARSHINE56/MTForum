@@ -16,6 +16,7 @@ public final class ResponsePolicy {
         else if (code >= 500) reason = "论坛服务暂时不可用，请稍后重试";
         else if (code >= 300 && code < 400) reason = "页面重定向未完成";
         else reason = "网络请求失败";
+        ForumDiagnostics.failure("http_status", "http_" + code);
         throw new IOException(reason + "（HTTP " + code + "）");
     }
 

@@ -39,7 +39,7 @@ public final class ForumNetworkProbe {
         if (!pool.awaitTermination(170, TimeUnit.SECONDS)) pool.shutdownNow();
         Path output = Path.of(args.length == 0 ? "build/reports/forum-network-probe.txt" : args[0]);
         Files.createDirectories(output.toAbsolutePath().getParent());
-        Files.writeString(output, report.toString(), StandardCharsets.UTF_8);
+        Files.write(output, report.toString().getBytes(StandardCharsets.UTF_8));
         System.out.println("Live probe is evidence only; inaccessible pages are not a passing website verification.");
     }
 }

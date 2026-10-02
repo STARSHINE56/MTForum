@@ -21,6 +21,7 @@ public class MyApplication extends Application {
         // 防止从最近任务直接恢复 SearchActivity 等非 MainActivity 时登录态丢失
         HttpClient.getInstance().init(this);
         com.solosu.mtforum.network.VerificationGate.getInstance().install(this);
+        com.solosu.mtforum.network.ForumImages.install(this);
 
         // 运行日志落盘，App 被杀后仍可回看
         AiLog.attach(this);
